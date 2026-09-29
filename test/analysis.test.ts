@@ -139,3 +139,33 @@ describe('cycleBreakdown', () => {
     expect(busy[t.index]).toBe([...busy].sort((a, b) => a - b)[1]);
   });
 });
+
+describe('driver gaps', () => {
+  const driverNamed = (fixture: string, prefix: string) =>
+    load(fixture).drivers.find((d) => d.node.name.startsWith(prefix))!;
+
+  it('ignores the period before a first run', () => {
+    const d = driverNamed('start-prev0.json', 'alsa_input.usb-046d');
+    const m = cycleMetrics(d);
+    expect(m.gap[0]).toBe(1);
+    expect(m.period[0]).toBeNaN();
+    expect(m.gap[1]).toBe(0);
+    expect(m.period[1]).toBeCloseTo(m.budget[0], -2);
+  });
+
+  it('ignores the period spanning an idle driver', () => {
+    const d = driverNamed('handover.json', 'alsa_output.usb-SMSL');
+    const m = cycleMetrics(d);
+    expect(m.gap[0]).toBe(1);
+    expect(m.period[0]).toBeNaN();
+    expect([...m.gap.subarray(1)].every((g) => g === 0)).toBe(true);
+  });
+
+  it('has no budget for clocks without a fixed rate', () => {
+    const d = driverNamed('start-prev0.json', 'v4l2_input');
+    const m = cycleMetrics(d);
+    expect(m.budget[0]).toBeNaN();
+    expect(m.load[0]).toBeNaN();
+    expect(findAnomalies(d).filter((a) => a.kind !== 'incomplete')).toEqual([]);
+  });
+});

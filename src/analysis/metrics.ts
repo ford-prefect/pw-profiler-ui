@@ -7,11 +7,16 @@ import { clampRange, type Range } from './range';
  */
 
 export interface CycleMetrics {
-  /* Current signal - previous signal. */
+  /* Current signal - previous signal; NaN after an idle gap. */
   period: Float64Array;
+  /* 1 where the driver (re)started after being idle, including its first run. */
+  gap: Uint8Array;
   /* Driver signal -> driver finish: total graph processing time. */
   busy: Float64Array;
-  /* Cycle duration in rate-corrected time: the processing budget. */
+  /*
+   * Cycle duration in rate-corrected time: the processing budget. NaN for
+   * clocks without a fixed rate (e.g. video), where it is not meaningful.
+   */
   budget: Float64Array;
   /* Period the driver should have woken up after: the previous budget. */
   expectedPeriod: Float64Array;
@@ -37,6 +42,16 @@ const nodeCache = new WeakMap<Driver, Map<number, NodeMetrics>>();
 
 const pos = (v: number) => (v >= 0 ? v : NaN);
 
+/* SPA_IO_CLOCK_FLAG_NO_RATE: the clock rate is only approximate. */
+const CLOCK_FLAG_NO_RATE = 1 << 3;
+
+/*
+ * A period this many times the expected one means the driver was idle, not
+ * late. Without an expected period, one over a second does.
+ */
+const IDLE_FACTOR = 10;
+const IDLE_US = 1e6;
+
 /* Seconds from `origin` (ns) to each cycle's driver signal. */
 export function cycleTimes(driver: Driver, origin: number): Float64Array {
   const signal = driver.series('driver.signal');
@@ -58,9 +73,11 @@ export function cycleMetrics(driver: Driver): CycleMetrics {
   const duration = driver.series('clock.duration');
   const delay = driver.series('clock.delay');
   const diff = driver.series('clock.diff');
+  const flags = driver.series('clock.flags');
 
   m = {
     period: new Float64Array(n),
+    gap: new Uint8Array(n),
     busy: new Float64Array(n),
     budget: new Float64Array(n),
     expectedPeriod: new Float64Array(n),
@@ -69,10 +86,15 @@ export function cycleMetrics(driver: Driver): CycleMetrics {
   };
   for (let i = 0; i < n; i++) {
     const tick = (1e6 * num[i]) / denom[i];
-    m.period[i] = pos((signal[i] - prev[i]) / 1e3);
     m.busy[i] = pos((finish[i] - signal[i]) / 1e3);
-    m.budget[i] = (duration[i] * tick) / diff[i];
+    m.budget[i] = flags[i] & CLOCK_FLAG_NO_RATE ? NaN : (duration[i] * tick) / diff[i];
     m.expectedPeriod[i] = i > 0 ? m.budget[i - 1] : NaN;
+
+    const period = pos((signal[i] - prev[i]) / 1e3);
+    const idle = Number.isFinite(m.expectedPeriod[i]) ? IDLE_FACTOR * m.expectedPeriod[i] : IDLE_US;
+    /* prev is 0 before the driver's first run. */
+    m.gap[i] = prev[i] === 0 || period > idle ? 1 : 0;
+    m.period[i] = m.gap[i] ? NaN : period;
     m.delay[i] = delay[i] * tick;
     m.load[i] = m.busy[i] / m.budget[i];
   }
