@@ -4,10 +4,12 @@ import {
   clientStats,
   cycleMetrics,
   cycleTimes,
+  findAnomalies,
   histogram,
   nodeMetrics,
   quantile,
   summarize,
+  topCycles,
 } from '../src/analysis';
 import { buildProfile } from '../src/model';
 import { parseText } from '../src/parse/parser';
@@ -81,5 +83,19 @@ describe('clientStats', () => {
     expect(chromium.cycles).toBe(3);
     const busy = summarize(cycleMetrics(d).busy).sum;
     expect(chromium.share).toBeCloseTo(chromium.duration.sum / busy, 9);
+  });
+});
+
+describe('anomalies', () => {
+  it('finds none in a clean capture', () => {
+    expect(findAnomalies(load('start.json').drivers[0])).toEqual([]);
+    expect(findAnomalies(load('churn.json').drivers[0])).toEqual([]);
+  });
+
+  it('ranks top cycles', () => {
+    const v = [3, NaN, 9, 1, 9, 5];
+    expect(topCycles(v, 3)).toEqual([2, 4, 5]);
+    expect(topCycles(v, 10)).toEqual([2, 4, 5, 0, 3]);
+    expect(topCycles(v, 2, { start: 3, end: 6 })).toEqual([4, 5]);
   });
 });
