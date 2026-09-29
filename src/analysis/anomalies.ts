@@ -134,6 +134,14 @@ function incidents(driver: Driver, counters: CounterIncrease[]): { found: Anomal
   for (let i = 0; i < n; i++) {
     const r = report[i];
     if (r === Report.Normal || (r === Report.Recovery && i > 0 && report[i - 1] === Report.Incomplete)) continue;
+    /*
+     * On a driver's first report after a gap, the unfinished run is from
+     * its previous activation, not this one.
+     */
+    if (gap[i]) {
+      if (i + 1 < n && report[i + 1] === Report.Recovery) i++;
+      continue;
+    }
 
     const recovery = r === Report.Recovery ? i : i + 1 < n && report[i + 1] === Report.Recovery ? i + 1 : undefined;
     const last = recovery ?? i;

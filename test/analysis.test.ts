@@ -235,16 +235,13 @@ describe('driver role changes', () => {
             ? [a.cycle, 'incomplete', a.counters.map((c) => [c.node?.name, c.increase])]
             : [a.cycle, a.kind],
       );
-    /* echo-cancel counters rise 1 -> 2 under Dummy-Driver at 12.86s, as it recovers ... */
+    /*
+     * Dummy-Driver's first report is incomplete, with a run left from its
+     * previous activation; echo-cancel counters rise 1 -> 2 under it ...
+     */
     expect(summary(dummy)).toEqual([
-      [
-        0,
-        'incomplete',
-        [
-          ['echo_cancel_source', 1],
-          ['echo_cancel_playback', 1],
-        ],
-      ],
+      [2, 'xrun', 'echo_cancel_source', 1],
+      [2, 'xrun', 'echo_cancel_playback', 1],
     ]);
     /* ... then to 26 by the time the mic drives, and 28 later; the mic's own count rises too. */
     expect(summary(mic)).toEqual([
@@ -329,10 +326,11 @@ describe('incomplete graph runs', () => {
     const p = load('setup-xruns.json');
     const dummy = p.drivers.find((d) => d.node.name === 'Dummy-Driver')!;
     const xruns = findAnomalies(p, dummy).filter((a) => a.kind === 'xrun');
-    /* Rises at cycle 2 belong to the recovery at 0-1; playback did not rise at 10. */
+    /* Playback did not rise at 10. */
     expect(xruns.map((a) => a.kind === 'xrun' && [a.node?.name, a.cycle, a.end, a.count])).toEqual([
-      ['echo_cancel_source', 4, 17, 8],
-      ['echo_cancel_playback', 4, 17, 7],
+      ['echo_cancel_source', 2, 17, 9],
+      ['echo_cancel_playback', 2, 17, 8],
     ]);
+    expect(findAnomalies(p, dummy).filter((a) => a.kind === 'incomplete')).toEqual([]);
   });
 });
