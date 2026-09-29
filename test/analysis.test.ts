@@ -274,3 +274,27 @@ describe('activeSpans', () => {
     ]);
   });
 });
+
+describe('xrun recovery', () => {
+  /* Mic cycles around a new node joining: 2 is incomplete, 3 its recovery. */
+  const setup = () => {
+    const p = load('incident.json');
+    return { p, d: p.drivers[0] };
+  };
+
+  it('classifies reports', () => {
+    const { d } = setup();
+    expect([...cycleMetrics(d).report]).toEqual([0, 0, 1, 2, 0, 0]);
+  });
+
+  it('keeps incomplete and recovery reports out of timings', () => {
+    const { d } = setup();
+    const m = cycleMetrics(d);
+    expect([m.busy[2], m.busy[3], m.period[2], m.period[3]].every(Number.isNaN)).toBe(true);
+    expect(m.busy[4]).toBeCloseTo(1429.0, 1);
+    const eq = d.followers.find((n) => n.name === 'eq_capture')!;
+    /* The stuck run is taken from the recovery report. */
+    expect(nodeMetrics(d, eq).duration[2]).toBeNaN();
+    expect(nodeMetrics(d, eq).duration[3]).toBeCloseTo(46.4 - 28.7, 1);
+  });
+});
