@@ -38,7 +38,7 @@ describe('metrics', () => {
     expect(m.expectedPeriod[0]).toBeNaN();
     expect(m.expectedPeriod[1]).toBe(m.budget[0]);
     expect(m.load[0]).toBeCloseTo(m.busy[0] / m.budget[0], 9);
-    expect(cycleTimes(d, p.start)[0]).toBeCloseTo((276485769936 - 276485751620) / 1e9, 9);
+    expect(cycleTimes(d, p.start)[1]).toBeCloseTo((276495751877 - 276485751620) / 1e9, 9);
   });
 
   it('derives follower timings', () => {
@@ -199,5 +199,31 @@ describe('async followers', () => {
   it('are not reported as unfinished', () => {
     const { d } = setup();
     expect(findAnomalies(d)).toEqual([]);
+  });
+});
+
+describe('driver role changes', () => {
+  const setup = () => {
+    const p = load('roles.json');
+    const byId = (id: number) => p.drivers.find((d) => d.node.id === id)!;
+    return { p, sink: byId(70), dummy: byId(34), mic: byId(71) };
+  };
+
+  it('treats timings far from the clock time as stale', () => {
+    const { dummy } = setup();
+    const m = cycleMetrics(dummy);
+    expect([...m.stale]).toEqual([1, 0, 0, 0]);
+    expect(m.busy[0]).toBeNaN();
+    expect(m.gap[0]).toBe(1);
+    expect(cycleBreakdown(dummy, 0).rows.every((r) => Number.isNaN(r.finish))).toBe(true);
+  });
+
+  it('breaks where the record jumps ahead', () => {
+    const { sink } = setup();
+    const m = cycleMetrics(sink);
+    /* Driver at 12.8s and 13.0s, a follower of the mic, then driver at 193.4s. */
+    expect([...m.gap]).toEqual([0, 0, 0, 0, 0, 1, 0]);
+    expect(m.period[5]).toBeNaN();
+    expect(m.period[6]).toBeCloseTo(m.budget[5], -2);
   });
 });

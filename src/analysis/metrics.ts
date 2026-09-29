@@ -9,8 +9,14 @@ import { clampRange, type Range } from './range';
 export interface CycleMetrics {
   /* Current signal - previous signal; NaN after an idle gap. */
   period: Float64Array;
-  /* 1 where the driver (re)started after being idle, including its first run. */
+  /*
+   * 1 where the cycle does not continue the previous one: the driver
+   * (re)started after being idle or first ran, the record jumps ahead, or
+   * the cycle is stale.
+   */
   gap: Uint8Array;
+  /* 1 where the driver's timings are not from this cycle. */
+  stale: Uint8Array;
   /* Driver signal -> driver finish: total graph processing time. */
   busy: Float64Array;
   /*
@@ -52,11 +58,17 @@ const CLOCK_FLAG_NO_RATE = 1 << 3;
 const IDLE_FACTOR = 10;
 const IDLE_US = 1e6;
 
-/* Seconds from `origin` (ns) to each cycle's driver signal. */
+/* Driver timings further than this from the clock time (ns) are stale. */
+const STALE_NS = 1e9;
+
+/*
+ * Seconds from `origin` (ns) to each cycle's clock time. The clock time is
+ * used as driver timings can be stale on a driver's first cycle.
+ */
 export function cycleTimes(driver: Driver, origin: number): Float64Array {
-  const signal = driver.series('driver.signal');
-  const out = new Float64Array(signal.length);
-  for (let i = 0; i < signal.length; i++) out[i] = (signal[i] - origin) / 1e9;
+  const nsec = driver.series('clock.nsec');
+  const out = new Float64Array(nsec.length);
+  for (let i = 0; i < nsec.length; i++) out[i] = (nsec[i] - origin) / 1e9;
   return out;
 }
 
@@ -74,10 +86,12 @@ export function cycleMetrics(driver: Driver): CycleMetrics {
   const delay = driver.series('clock.delay');
   const diff = driver.series('clock.diff');
   const flags = driver.series('clock.flags');
+  const nsec = driver.series('clock.nsec');
 
   m = {
     period: new Float64Array(n),
     gap: new Uint8Array(n),
+    stale: new Uint8Array(n),
     busy: new Float64Array(n),
     budget: new Float64Array(n),
     expectedPeriod: new Float64Array(n),
@@ -86,14 +100,21 @@ export function cycleMetrics(driver: Driver): CycleMetrics {
   };
   for (let i = 0; i < n; i++) {
     const tick = (1e6 * num[i]) / denom[i];
-    m.busy[i] = pos((finish[i] - signal[i]) / 1e3);
+    m.stale[i] = Math.abs(signal[i] - nsec[i]) > STALE_NS ? 1 : 0;
+    m.busy[i] = m.stale[i] ? NaN : pos((finish[i] - signal[i]) / 1e3);
     m.budget[i] = flags[i] & CLOCK_FLAG_NO_RATE ? NaN : (duration[i] * tick) / diff[i];
     m.expectedPeriod[i] = i > 0 ? m.budget[i - 1] : NaN;
 
     const period = pos((signal[i] - prev[i]) / 1e3);
     const idle = Number.isFinite(m.expectedPeriod[i]) ? IDLE_FACTOR * m.expectedPeriod[i] : IDLE_US;
     /* prev is 0 before the driver's first run. */
-    m.gap[i] = prev[i] === 0 || period > idle ? 1 : 0;
+    /*
+     * The record jumps ahead when the node kept running as a follower of
+     * another driver. Its period then spans the change of driver.
+     */
+    const jump = i > 0 && (nsec[i] - nsec[i - 1]) / 1e3 > IDLE_US;
+    /* prev is 0 before the driver's first run. */
+    m.gap[i] = m.stale[i] || jump || prev[i] === 0 || period > idle ? 1 : 0;
     m.period[i] = m.gap[i] ? NaN : period;
     m.delay[i] = delay[i] * tick;
     m.load[i] = m.busy[i] / m.budget[i];
@@ -150,6 +171,7 @@ export function nodeMetrics(driver: Driver, node: Node): NodeMetrics {
   const finish = driver.nodeSeries(node, 'finish');
   const finished = driver.stringId('finished');
   const async = asyncReports(driver, node);
+  const stale = cycleMetrics(driver).stale;
 
   m = {
     start: new Float64Array(n).fill(NaN),
@@ -158,11 +180,12 @@ export function nodeMetrics(driver: Driver, node: Node): NodeMetrics {
     end: new Float64Array(n).fill(NaN),
   };
   for (let i = 0; i < n; i++) {
+    if (stale[i]) continue;
     let c = i;
     if (async[i]) {
       /* The previous run, if it was in the previous recorded cycle. */
       c = i - 1;
-      if (c < 0 || !(signal[i] >= cycleSignal[c] && finish[i] >= awake[i] && awake[i] >= signal[i])) continue;
+      if (c < 0 || stale[c] || !(signal[i] >= cycleSignal[c] && finish[i] >= awake[i] && awake[i] >= signal[i])) continue;
     } else if (status[i] !== finished) {
       continue;
     }

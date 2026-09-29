@@ -27,7 +27,8 @@ export function cycleBreakdown(driver: Driver, index: number): CycleBreakdown {
   const c = driver.cycle(index);
   const m = cycleMetrics(driver);
   const t0 = c.driver.signal;
-  const rel = (v: number, ok: boolean) => (ok && v >= t0 ? (v - t0) / 1e3 : NaN);
+  const stale = m.stale[index] === 1;
+  const rel = (v: number, ok: boolean) => (ok && !stale && v >= t0 ? (v - t0) / 1e3 : NaN);
 
   /* Async followers' runs in this cycle are in the next cycle's report. */
   const next = index + 1 < driver.cycleCount ? driver.cycle(index + 1) : null;
