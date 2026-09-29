@@ -441,3 +441,17 @@ tr.selected {
   color: var(--muted);
   white-space: nowrap;
 }
+
+.columns > * {
+  min-width: 0;
+}
+
+.chart {
+  overflow: hidden;
+}
+
+.chart .u-legend.u-inline tbody {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
