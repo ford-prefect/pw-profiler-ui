@@ -1,0 +1,76 @@
+import type { Driver, Node } from '../model';
+import { cycleMetrics } from './metrics';
+import { summarize, type Summary } from './stats';
+import type { Range } from './range';
+
+export interface CycleRow {
+  node: Node;
+  driver: boolean;
+  status: string;
+  /* µs from driver signal; NaN unless the node finished. */
+  signal: number;
+  awake: number;
+  finish: number;
+}
+
+export interface CycleBreakdown {
+  index: number;
+  busy: number;
+  budget: number;
+  /* Rows in order of signal time, driver last as it finishes the cycle. */
+  rows: CycleRow[];
+}
+
+/* Timeline of one cycle relative to its driver signal. */
+export function cycleBreakdown(driver: Driver, index: number): CycleBreakdown {
+  const c = driver.cycle(index);
+  const m = cycleMetrics(driver);
+  const t0 = c.driver.signal;
+  const rel = (v: number, ok: boolean) => (ok && v >= t0 ? (v - t0) / 1e3 : NaN);
+
+  const followers = c.followers.map((b) => {
+    const ok = b.status === 'finished';
+    return {
+      node: b.node,
+      driver: false,
+      status: b.status,
+      signal: rel(b.signal, ok),
+      awake: rel(b.awake, ok),
+      finish: rel(b.finish, ok),
+    };
+  });
+  const key = (v: number) => (Number.isNaN(v) ? Infinity : v);
+  followers.sort((a, b) => key(a.signal) - key(b.signal) || key(a.awake) - key(b.awake));
+  const ok = c.driver.status === 'finished';
+
+  return {
+    index,
+    busy: m.busy[index],
+    budget: m.budget[index],
+    rows: [
+      ...followers,
+      {
+        node: c.driver.node,
+        driver: true,
+        status: c.driver.status,
+        signal: rel(c.driver.signal, ok),
+        awake: rel(c.driver.awake, ok),
+        finish: rel(c.driver.finish, ok),
+      },
+    ],
+  };
+}
+
+/* The cycle in range whose graph time is closest to the median. */
+export function typicalCycle(driver: Driver, range?: Range): { index: number; busy: Summary } | null {
+  const busy = cycleMetrics(driver).busy;
+  const s = summarize(busy, range);
+  if (!s.n) return null;
+  const start = range?.start ?? 0;
+  const end = range?.end ?? busy.length;
+  let best = -1;
+  for (let i = start; i < end; i++) {
+    if (Number.isFinite(busy[i]) && (best < 0 || Math.abs(busy[i] - s.p50) < Math.abs(busy[best] - s.p50))) best = i;
+  }
+  return { index: best, busy: s };
+}

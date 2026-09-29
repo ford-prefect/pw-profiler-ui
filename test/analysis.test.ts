@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   clientStats,
   clockConfigs,
+  cycleBreakdown,
   cycleMetrics,
   cycleTimes,
   findAnomalies,
@@ -11,6 +12,7 @@ import {
   quantile,
   summarize,
   topCycles,
+  typicalCycle,
 } from '../src/analysis';
 import { buildProfile } from '../src/model';
 import { parseText } from '../src/parse/parser';
@@ -108,5 +110,32 @@ describe('clockConfigs', () => {
     expect(clockConfigs(load('start.json').drivers[0])).toEqual([
       { duration: 480, rate: { num: 1, denom: 48000 }, cycles: 3 },
     ]);
+  });
+});
+
+describe('cycleBreakdown', () => {
+  it('orders rows by signal time relative to the driver', () => {
+    const d = load('start.json').drivers[0];
+    const b = cycleBreakdown(d, 0);
+    expect(b.rows.at(-1)).toMatchObject({ driver: true, signal: 0 });
+    expect(b.rows.at(-1)!.awake).toBeCloseTo(207.325, 3);
+    const signals = b.rows.slice(0, -1).map((r) => r.signal);
+    expect(signals).toEqual([...signals].sort((x, y) => x - y));
+    const chromium = b.rows.find((r) => r.node.name === 'Chromium')!;
+    expect(chromium.finish - chromium.awake).toBeCloseTo(66.921, 3);
+  });
+
+  it('leaves unfinished nodes without timings', () => {
+    const d = load('churn.json').drivers[0];
+    const chromium = cycleBreakdown(d, 0).rows.find((r) => r.node.name === 'Chromium')!;
+    expect(chromium.status).toBe('inactive');
+    expect(chromium.finish).toBeNaN();
+  });
+
+  it('picks the median cycle as typical', () => {
+    const d = load('start.json').drivers[0];
+    const busy = [...cycleMetrics(d).busy];
+    const t = typicalCycle(d)!;
+    expect(busy[t.index]).toBe([...busy].sort((a, b) => a - b)[1]);
   });
 });
