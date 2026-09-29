@@ -336,3 +336,108 @@ td.name {
   color: var(--ink);
   font-weight: 600;
 }
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: 24px;
+}
+
+table.pick tbody tr {
+  cursor: pointer;
+}
+
+table.pick tbody tr:hover,
+tr.selected {
+  background: var(--grid);
+}
+
+.ok-note .status-icon {
+  color: var(--good);
+}
+
+.gantt {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.gantt-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 30%) 1fr;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+}
+
+.gantt-row:not(.axis):hover {
+  background: var(--grid);
+}
+
+.gantt-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gantt-row.driver .gantt-label {
+  font-weight: 600;
+}
+
+.gantt-track {
+  position: relative;
+  height: 14px;
+  border-left: 1px solid var(--axis);
+}
+
+.gantt-wait,
+.gantt-run {
+  position: absolute;
+  top: 2px;
+  height: 10px;
+  min-width: 1px;
+}
+
+.gantt-wait {
+  background: var(--grid);
+  border-radius: 2px 0 0 2px;
+}
+
+.gantt-run {
+  background: var(--series-1);
+  border-radius: 0 3px 3px 0;
+}
+
+.gantt-row.driver .gantt-run {
+  background: var(--ink-2);
+}
+
+.gantt-status {
+  color: var(--muted);
+  padding-left: 4px;
+}
+
+.gantt-budget {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  border-left: 1px solid var(--critical);
+}
+
+.gantt-row.axis .gantt-track {
+  border-left: none;
+  height: 16px;
+}
+
+.gantt-tick {
+  position: absolute;
+  transform: translateX(-50%);
+  color: var(--muted);
+  white-space: nowrap;
+}

@@ -1,7 +1,9 @@
 import { Clients } from './Clients';
+import { CycleView } from './CycleView';
 import { Distribution } from './Distribution';
 import { Loader } from './Loader';
-import { driverIndex, fileName, profile, selectDriver, zoom } from './state';
+import { Outliers } from './Outliers';
+import { driverIndex, fileName, profile, selectDriver, selectedCycle, zoom } from './state';
 import { Summary } from './Summary';
 import { Timeline } from './Timeline';
 import './style.css';
@@ -48,6 +50,8 @@ export function App() {
           <>
             <Summary />
             <Timeline />
+            {selectedCycle.value != null && <CycleView />}
+            <Outliers />
             <Distribution />
             <Clients />
           </>
