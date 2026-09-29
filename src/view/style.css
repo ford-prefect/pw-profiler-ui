@@ -346,7 +346,6 @@ td.name {
 
 .columns {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
   gap: 24px;
 }
 
@@ -464,4 +463,36 @@ tr.selected {
   border-radius: 4px;
   font-size: 11px;
   color: var(--ink-2);
+}
+
+.incident {
+  border-left: 3px solid var(--critical);
+  padding: 2px 12px;
+  margin: 8px 0 12px;
+}
+
+.incident p,
+.incident ul {
+  margin: 4px 0;
+}
+
+.incident .status-icon {
+  color: var(--critical);
+}
+
+.gantt-row.blocked .gantt-label {
+  font-weight: 600;
+}
+
+.gantt-row.blocked .gantt-status {
+  color: var(--critical);
+}
+
+td.wrap {
+  white-space: normal;
+  min-width: 24ch;
+}
+
+table.pick {
+  width: auto;
 }

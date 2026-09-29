@@ -1,10 +1,13 @@
-import type { CycleBreakdown, CycleRow } from '../../analysis';
+import type { Blocked, CycleBreakdown, CycleRow } from '../../analysis';
+import { blockedText } from '../anomaly';
 import { us } from '../format';
 
 interface Props {
   cycle: CycleBreakdown;
   /* µs at the right edge, shared between charts being compared. */
   scale: number;
+  /* Nodes that held up an incomplete run, by node index. */
+  blocked?: Map<number, Blocked>;
 }
 
 function ticks(max: number): number[] {
@@ -27,21 +30,27 @@ function describe(r: CycleRow): string {
 }
 
 /* Per-node waiting (signal -> awake) and running (awake -> finish) spans. */
-export function Gantt({ cycle, scale }: Props) {
+export function Gantt({ cycle, scale, blocked }: Props) {
   const x = (v: number) => `${(v / scale) * 100}%`;
   const budget = cycle.budget <= scale ? cycle.budget : null;
 
   return (
     <div class="gantt">
       {cycle.rows.map((r) => (
-        <div class={`gantt-row ${r.driver ? 'driver' : ''}`} key={r.node.index} title={describe(r)}>
+        <div
+          class={`gantt-row ${r.driver ? 'driver' : ''} ${blocked?.has(r.node.index) ? 'blocked' : ''}`}
+          key={r.node.index}
+          title={describe(r)}
+        >
           <div class="gantt-label">
             {r.node.name} <span class="muted">{r.node.id}</span>
             {r.async && <span class="tag">async</span>}
           </div>
           <div class="gantt-track">
             {Number.isNaN(r.finish) ? (
-              <span class="gantt-status">{r.status}</span>
+              <span class="gantt-status">
+                {blocked?.has(r.node.index) ? `${blockedText(blocked.get(r.node.index)!)}: held up the graph` : r.status}
+              </span>
             ) : (
               <>
                 <span class="gantt-wait" style={{ left: x(r.signal), width: x(r.awake - r.signal) }} />

@@ -14,14 +14,16 @@ export interface TimeSeries {
   width?: number;
   /* Draw as markers only. */
   markers?: boolean;
+  /* Leave out of the y range of charts with fitted y axes. */
+  noFit?: boolean;
 }
 
 interface Props {
   series: TimeSeries[];
   format: (v: number) => string;
   height?: number;
-  /* Fit the y axis to the first series only. */
-  fitFirst?: boolean;
+  /* Fit the y axis from 0 to the series not marked noFit. */
+  fit?: boolean;
   /* Non-zero at cycles that follow a gap; lines are broken there. */
   breaks?: ArrayLike<number>;
 }
@@ -30,7 +32,7 @@ interface Props {
  * Time-series chart over the current driver's cycles. All instances share
  * the zoom, cursor and selected cycle.
  */
-export function TimeChart({ series, format, height = 200, fitFirst = false, breaks }: Props) {
+export function TimeChart({ series, format, height = 200, fit = false, breaks }: Props) {
   const el = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,12 +49,15 @@ export function TimeChart({ series, format, height = 200, fitFirst = false, brea
       height,
       scales: {
         x: time.x,
-        y: fitFirst
+        y: fit
           ? {
               range: (u) => {
                 let max = 0;
-                const y = u.data[1];
-                for (let i = 0; i < y.length; i++) if ((y[i] ?? 0) > max) max = y[i]!;
+                series.forEach((s, k) => {
+                  if (s.noFit) return;
+                  const y = u.data[k + 1];
+                  for (let i = 0; i < y.length; i++) if ((y[i] ?? 0) > max) max = y[i]!;
+                });
                 return [0, max * 1.1 || 1];
               },
             }

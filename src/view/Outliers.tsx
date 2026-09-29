@@ -39,33 +39,6 @@ export function Outliers() {
       <p class="hint">Within the visible range. Click a row to inspect the cycle.</p>
       <div class="columns">
         <div>
-          <h3>Slowest cycles</h3>
-          <div class="table-wrap">
-            <table class="pick">
-              <thead>
-                <tr>
-                  <th class="num">Time</th>
-                  <th class="num">Graph time</th>
-                  <th class="num">Budget</th>
-                  <th class="num">Largest delay</th>
-                  <th>Node</th>
-                </tr>
-              </thead>
-              <tbody>
-                {slowest.map(({ i, top }) => (
-                  <tr key={i} class={i === sel ? 'selected' : ''} onClick={() => (selectedCycle.value = i)}>
-                    <td class="num">{seconds(t[i])}</td>
-                    <td class="num">{us(m.busy[i])}</td>
-                    <td class="num">{pct(m.load[i])}</td>
-                    <td class="num">{top ? `${top.what} ${us(top.span)}` : '–'}</td>
-                    <td class="name" title={top?.name}>{top?.name ?? '–'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div>
           <h3>Anomalies</h3>
           {list.length === 0 ? (
             <p class="ok-note">
@@ -102,7 +75,7 @@ export function Outliers() {
                       <td class="name" title={subject(a)}>
                         {subject(a)}
                       </td>
-                      <td>{detail(a, t)}</td>
+                      <td class="wrap">{detail(a, t)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -114,6 +87,33 @@ export function Outliers() {
               )}
             </div>
           )}
+        </div>
+        <div>
+          <h3>Slowest cycles</h3>
+          <div class="table-wrap">
+            <table class="pick">
+              <thead>
+                <tr>
+                  <th class="num">Time</th>
+                  <th class="num">Graph time</th>
+                  <th class="num">Budget</th>
+                  <th class="num">Largest delay</th>
+                  <th>Node</th>
+                </tr>
+              </thead>
+              <tbody>
+                {slowest.map(({ i, top }) => (
+                  <tr key={i} class={i === sel ? 'selected' : ''} onClick={() => (selectedCycle.value = i)}>
+                    <td class="num">{seconds(t[i])}</td>
+                    <td class="num">{us(m.busy[i])}</td>
+                    <td class="num">{pct(m.load[i])}</td>
+                    <td class="num">{top ? `${top.what} ${us(top.span)}` : '–'}</td>
+                    <td class="name" title={top?.name}>{top?.name ?? '–'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>

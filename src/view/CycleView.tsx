@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'preact/hooks';
-import { cycleBreakdown, typicalCycle } from '../analysis';
-import { detail, KIND_LABEL, subject } from './anomaly';
+import { cycleBreakdown, typicalCycle, type Anomaly } from '../analysis';
+import { blockedText, detail, KIND_LABEL, subject } from './anomaly';
 import { Gantt } from './chart/Gantt';
 import { pct, seconds, us } from './format';
 import { anomalies, driver, range, selectedCycle, times } from './state';
@@ -18,13 +18,51 @@ function nextAnomaly(dir: 1 | -1) {
   if (a) selectedCycle.value = a.cycle;
 }
 
+function IncidentSummary({ incident }: { incident: Anomaly & { kind: 'incomplete' } }) {
+  const counters = incident.counters.map(
+    (c) => `${c.node?.name ?? c.clock ?? 'driver'} +${c.increase}`,
+  );
+  return (
+    <div class="incident">
+      <p>
+        <span class="status-icon" aria-hidden="true">
+          ▲
+        </span>
+        The graph had not finished by the driver's next wakeup.
+        {Number.isFinite(incident.completion)
+          ? ` The driver completed the run in xrun recovery at +${us(incident.completion)}.`
+          : ' The run was not completed within the capture.'}
+      </p>
+      {incident.blocked.length ? (
+        <ul>
+          {incident.blocked.map((b) => (
+            <li key={b.node.index}>
+              <strong>{b.node.name}</strong> <span class="muted">{b.node.id}</span>: {blockedText(b)}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="muted">No follower was left unfinished; the hold-up is not visible in the report.</p>
+      )}
+      {counters.length > 0 && <p class="muted">xrun counters: {counters.join(', ')}</p>}
+    </div>
+  );
+}
+
 export function CycleView() {
   const d = driver.value!;
   const index = selectedCycle.value!;
   const r = range.value;
 
+  /* An incomplete run is shown as completed in its recovery report. */
+  const incident = anomalies.value.find(
+    (a): a is Anomaly & { kind: 'incomplete' } => a.kind === 'incomplete' && a.cycle <= index && index < a.end,
+  );
+  const shown = incident?.recovery ?? index;
+  const blocked = useMemo(() => new Map(incident?.blocked.map((b) => [b.node.index, b])), [incident]);
+
   const [sel, typical] = useMemo(() => {
-    const sel = cycleBreakdown(d, index);
+    const sel = cycleBreakdown(d, shown);
     const t = typicalCycle(d, r);
     if (!t) return [sel, null];
     /* Match the selected cycle's row order for comparison. */
@@ -32,7 +70,7 @@ export function CycleView() {
     const order = new Map(sel.rows.map((row, i) => [row.node.index, i]));
     typ.rows.sort((a, b) => (order.get(a.node.index) ?? Infinity) - (order.get(b.node.index) ?? Infinity));
     return [sel, typ];
-  }, [d, index, r]);
+  }, [d, shown, r]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -50,13 +88,13 @@ export function CycleView() {
   const finish = (c: typeof sel | null) =>
     c ? Math.max(0, ...c.rows.map((row) => row.finish).filter(Number.isFinite)) : 0;
   const scale = Math.max(finish(sel), finish(typical)) * 1.05 || 1;
-  const cycleAnomalies = anomalies.value.filter((a) => a.cycle === index);
+  const cycleAnomalies = anomalies.value.filter((a) => a !== incident && a.cycle <= index && index < a.end);
 
   return (
     <section>
       <div class="section-head">
         <h2>
-          Cycle {index} at {seconds(times.value[index])}
+          {incident ? 'Incomplete cycle' : 'Cycle'} {index} at {seconds(times.value[index])}
         </h2>
         <span class="spacer" />
         <button class="button" onClick={() => nextAnomaly(-1)} title="Previous anomaly">
@@ -75,16 +113,21 @@ export function CycleView() {
           ✕
         </button>
       </div>
+      {incident && <IncidentSummary incident={incident} />}
       <p class="hint">
-        Graph time {us(sel.busy)}
-        {Number.isFinite(sel.budget) && ` (${pct(sel.busy / sel.budget)} of ${us(sel.budget)} budget)`}.
+        {!incident && (
+          <>
+            Graph time {us(sel.busy)}
+            {Number.isFinite(sel.budget) && ` (${pct(sel.busy / sel.budget)} of ${us(sel.budget)} budget)`}.
+          </>
+        )}
         {cycleAnomalies.length > 0 &&
           ` Anomalies: ${cycleAnomalies.map((a) => `${KIND_LABEL[a.kind]} (${subject(a)}: ${detail(a, times.value)})`).join(', ')}.`}{' '}
         Light bars are scheduling latency, dark bars processing.
         {sel.budget > scale && ` The budget line is off-scale.`}
       </p>
-      <h3>Selected</h3>
-      <Gantt cycle={sel} scale={scale} />
+      <h3>{incident ? `Run of cycle ${index}, completed in recovery (report ${shown})` : 'Selected'}</h3>
+      <Gantt cycle={sel} scale={scale} blocked={blocked} />
       {typical && (
         <>
           <h3>

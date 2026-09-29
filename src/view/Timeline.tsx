@@ -37,7 +37,7 @@ export function Timeline() {
     );
     const busy: TimeSeries[] = [
       { label: 'Graph time', values: m.busy, color: 'var(--series-1)' },
-      { label: 'Budget', values: m.budget, color: 'var(--muted)' },
+      { label: 'Budget', values: m.budget, color: 'var(--muted)', noFit: true },
       ...MARKERS.filter((k) => busyMarks.has(k.kind)).map((k) => ({
         label: k.label,
         values: busyMarks.get(k.kind)!,
@@ -62,8 +62,11 @@ export function Timeline() {
       <h2>Timeline</h2>
       <p class="hint">Drag to zoom, double-click to reset, click to inspect a cycle.</p>
       <h3>Graph processing time</h3>
-      <p class="hint">Driver signal to driver finish. The budget line is drawn when in range.</p>
-      <TimeChart series={busy} format={us} fitFirst breaks={m.gap} />
+      <p class="hint">
+        Driver signal to driver finish. The budget line is drawn when in range. Incomplete cycles are
+        marked where the driver completed them.
+      </p>
+      <TimeChart series={busy} format={us} fit breaks={m.gap} />
       <h3>Wakeup period</h3>
       <TimeChart series={period} format={us} height={140} breaks={m.gap} />
       <h3>Driver delay</h3>
