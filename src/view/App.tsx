@@ -1,6 +1,7 @@
 import { Clients } from './Clients';
 import { CycleView } from './CycleView';
 import { Distribution } from './Distribution';
+import { Drivers } from './Drivers';
 import { count } from './format';
 import { Loader } from './Loader';
 import { Outliers } from './Outliers';
@@ -52,6 +53,7 @@ export function App() {
       <main>
         {profile.value ? (
           <>
+            {profile.value.drivers.length > 1 && <Drivers />}
             <Summary />
             <Timeline />
             {selectedCycle.value != null && <CycleView />}
