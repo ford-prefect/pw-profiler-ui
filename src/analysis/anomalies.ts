@@ -52,11 +52,8 @@ export function findAnomalies(driver: Driver, opts: AnomalyOptions = {}): Anomal
   const driverStatus = driver.series('driver.status');
   for (let i = 0; i < n; i++) {
     if (m.load[i] > 1) out.push({ cycle: i, kind: 'overrun', value: m.load[i] });
-    /* A cycle's period follows from the previous cycle's budget. */
-    if (i > 0) {
-      const r = m.period[i] / m.budget[i - 1];
-      if (Math.abs(r - 1) > tolerance) out.push({ cycle: i, kind: 'period', value: r });
-    }
+    const r = m.period[i] / m.expectedPeriod[i];
+    if (Math.abs(r - 1) > tolerance) out.push({ cycle: i, kind: 'period', value: r });
     if (unfinished.has(driverStatus[i])) out.push({ cycle: i, kind: 'incomplete', node: driver.node });
   }
 

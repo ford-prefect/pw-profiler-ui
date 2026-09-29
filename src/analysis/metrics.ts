@@ -13,6 +13,8 @@ export interface CycleMetrics {
   busy: Float64Array;
   /* Cycle duration in rate-corrected time: the processing budget. */
   budget: Float64Array;
+  /* Period the driver should have woken up after: the previous budget. */
+  expectedPeriod: Float64Array;
   /* Hardware pointer delay at wakeup. */
   delay: Float64Array;
   /* busy / budget */
@@ -61,6 +63,7 @@ export function cycleMetrics(driver: Driver): CycleMetrics {
     period: new Float64Array(n),
     busy: new Float64Array(n),
     budget: new Float64Array(n),
+    expectedPeriod: new Float64Array(n),
     delay: new Float64Array(n),
     load: new Float64Array(n),
   };
@@ -69,6 +72,7 @@ export function cycleMetrics(driver: Driver): CycleMetrics {
     m.period[i] = pos((signal[i] - prev[i]) / 1e3);
     m.busy[i] = pos((finish[i] - signal[i]) / 1e3);
     m.budget[i] = (duration[i] * tick) / diff[i];
+    m.expectedPeriod[i] = i > 0 ? m.budget[i - 1] : NaN;
     m.delay[i] = delay[i] * tick;
     m.load[i] = m.busy[i] / m.budget[i];
   }

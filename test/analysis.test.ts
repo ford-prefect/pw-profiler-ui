@@ -32,6 +32,8 @@ describe('metrics', () => {
     expect(m.busy[0]).toBeCloseTo(213.939, 3);
     expect(m.delay[0]).toBeCloseTo(22000, 3);
     expect(m.budget[0]).toBeCloseTo(480e6 / (48000 * 0.999974), 3);
+    expect(m.expectedPeriod[0]).toBeNaN();
+    expect(m.expectedPeriod[1]).toBe(m.budget[0]);
     expect(m.load[0]).toBeCloseTo(m.busy[0] / m.budget[0], 9);
     expect(cycleTimes(d, p.start)[0]).toBeCloseTo((276485769936 - 276485751620) / 1e9, 9);
   });
