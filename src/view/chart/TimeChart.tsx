@@ -4,7 +4,7 @@ import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { range, selectedCycle, times } from '../state';
 import { breakAt, decimate } from './decimate';
-import { color, themeVersion, token } from './theme';
+import { color, font, themeVersion, token } from './theme';
 import { bindTimeEvents, timeAxisOptions } from './timeAxis';
 
 export interface TimeSeries {
@@ -41,7 +41,7 @@ export function TimeChart({ series, format, height = 200, fit = false, breaks }:
     let index: ArrayLike<number> = [];
     const ink2 = token('--ink-2');
     const grid = token('--grid');
-    const axis = { stroke: ink2, grid: { stroke: grid, width: 1 }, ticks: { stroke: grid, width: 1 } };
+    const axis = { font: font(12), stroke: ink2, grid: { stroke: grid, width: 1 }, ticks: { stroke: grid, width: 1 } };
     const time = timeAxisOptions(axis);
 
     const opts: uPlot.Options = {

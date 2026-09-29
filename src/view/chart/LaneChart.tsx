@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { visibleSpan } from '../state';
-import { themeVersion, token } from './theme';
+import { font, themeVersion, token } from './theme';
 import { bindTimeEvents, timeAxisOptions } from './timeAxis';
 
 export interface Lane {
@@ -27,7 +27,7 @@ export function LaneChart({ lanes, onPick }: Props) {
     void themeVersion.value;
     const root = el.current!;
     const grid = token('--grid');
-    const axis = { stroke: token('--ink-2'), grid: { stroke: grid, width: 1 }, ticks: { stroke: grid, width: 1 } };
+    const axis = { font: font(12), stroke: token('--ink-2'), grid: { stroke: grid, width: 1 }, ticks: { stroke: grid, width: 1 } };
     const time = timeAxisOptions(axis);
     const height = lanes.length * LANE + 50;
 
@@ -52,7 +52,7 @@ export function LaneChart({ lanes, onPick }: Props) {
               ctx.beginPath();
               ctx.rect(left, top, width, u.bbox.height);
               ctx.clip();
-              ctx.font = `${11 * dpr}px system-ui, sans-serif`;
+              ctx.font = font(11, dpr);
               ctx.textBaseline = 'top';
               ctx.textAlign = 'left';
               lanes.forEach((lane, k) => {

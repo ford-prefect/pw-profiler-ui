@@ -3,7 +3,7 @@ import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import type { Histogram } from '../../analysis';
 import { count } from '../format';
-import { themeVersion, token } from './theme';
+import { font, themeVersion, token } from './theme';
 
 interface Props {
   hist: Histogram;
@@ -28,6 +28,7 @@ export function HistogramChart({ hist, format, rules = [], height = 200 }: Props
     const width = edges[1] - edges[0];
     const grid = token('--grid');
     const axis = {
+      font: font(12),
       stroke: token('--ink-2'),
       grid: { stroke: grid, width: 1 },
       ticks: { stroke: grid, width: 1 },
@@ -77,7 +78,7 @@ export function HistogramChart({ hist, format, rules = [], height = 200 }: Props
               ctx.save();
               ctx.strokeStyle = token('--ink');
               ctx.fillStyle = token('--ink');
-              ctx.font = `${12 * devicePixelRatio}px system-ui, sans-serif`;
+              ctx.font = font(12, devicePixelRatio);
               ctx.lineWidth = devicePixelRatio;
               ctx.textAlign = 'left';
               for (const r of rules) {

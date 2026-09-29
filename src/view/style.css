@@ -1,5 +1,6 @@
 :root {
   color-scheme: light;
+  --font: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --page: #f9f9f7;
   --surface: #fcfcfb;
   --ink: #0b0b0b;
@@ -21,8 +22,9 @@
   --warning: #fab219;
   --serious: #ec835a;
   --critical: #d03b3b;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--font);
   font-size: 14px;
+  font-feature-settings: 'cv11';
   background: var(--page);
   color: var(--ink);
 }

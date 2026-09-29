@@ -16,4 +16,9 @@ export function color(c: string): string {
   return m ? token(m[1]) : c;
 }
 
+/* Canvas font at `px` CSS pixels, scaled for the device. */
+export function font(px: number, scale = 1): string {
+  return `${px * scale}px ${token('--font')}`;
+}
+
 export const SERIES = Array.from({ length: 8 }, (_, i) => `var(--series-${i + 1})`);
