@@ -1,11 +1,12 @@
 import type { Driver, Node } from '../model';
-import { cycleMetrics } from './metrics';
+import { asyncReports, cycleMetrics } from './metrics';
 import { summarize, type Summary } from './stats';
 import type { Range } from './range';
 
 export interface CycleRow {
   node: Node;
   driver: boolean;
+  async: boolean;
   status: string;
   /* µs from driver signal; NaN unless the node finished. */
   signal: number;
@@ -28,11 +29,27 @@ export function cycleBreakdown(driver: Driver, index: number): CycleBreakdown {
   const t0 = c.driver.signal;
   const rel = (v: number, ok: boolean) => (ok && v >= t0 ? (v - t0) / 1e3 : NaN);
 
+  /* Async followers' runs in this cycle are in the next cycle's report. */
+  const next = index + 1 < driver.cycleCount ? driver.cycle(index + 1) : null;
   const followers = c.followers.map((b) => {
+    if (asyncReports(driver, b.node)[index]) {
+      const r = next?.followers.find((f) => f.node === b.node);
+      const ok = !!r && asyncReports(driver, b.node)[index + 1] === 1 && r.signal >= t0 && r.finish >= r.awake && r.awake >= r.signal;
+      return {
+        node: b.node,
+        driver: false,
+        async: true,
+        status: ok ? 'finished' : b.status,
+        signal: rel(r?.signal ?? NaN, ok),
+        awake: rel(r?.awake ?? NaN, ok),
+        finish: rel(r?.finish ?? NaN, ok),
+      };
+    }
     const ok = b.status === 'finished';
     return {
       node: b.node,
       driver: false,
+      async: false,
       status: b.status,
       signal: rel(b.signal, ok),
       awake: rel(b.awake, ok),
@@ -52,6 +69,7 @@ export function cycleBreakdown(driver: Driver, index: number): CycleBreakdown {
       {
         node: c.driver.node,
         driver: true,
+        async: false,
         status: c.driver.status,
         signal: rel(c.driver.signal, ok),
         awake: rel(c.driver.awake, ok),

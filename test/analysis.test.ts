@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  asyncReports,
   clientStats,
   clockConfigs,
   cycleBreakdown,
@@ -167,5 +168,35 @@ describe('driver gaps', () => {
     expect(m.budget[0]).toBeNaN();
     expect(m.load[0]).toBeNaN();
     expect(findAnomalies(d).filter((a) => a.kind !== 'incomplete')).toEqual([]);
+  });
+});
+
+describe('async followers', () => {
+  const setup = () => {
+    const d = load('async.json').drivers.find((d) => d.node.name.startsWith('v4l2_input'))!;
+    return { d, node: d.followers.find((n) => n.name === 'org.gnome.Snapshot')! };
+  };
+
+  it('are inferred without the async field', () => {
+    const { d, node } = setup();
+    expect([...asyncReports(d, node)]).toEqual([1, 1, 1, 1]);
+    expect(clientStats(d)[0].async).toBe(true);
+  });
+
+  it('have runs attributed to the cycle they ran in', () => {
+    const { d, node } = setup();
+    const m = nodeMetrics(d, node);
+    expect(m.latency[0]).toBeCloseTo(18.004, 3);
+    expect(m.duration[0]).toBeCloseTo(13.415, 3);
+    expect(m.end[0]).toBeCloseTo(31.419, 3);
+    expect(m.duration[3]).toBeNaN();
+    const row = cycleBreakdown(d, 0).rows.find((r) => r.node === node)!;
+    expect(row).toMatchObject({ async: true, status: 'finished' });
+    expect(row.finish).toBeCloseTo(31.419, 3);
+  });
+
+  it('are not reported as unfinished', () => {
+    const { d } = setup();
+    expect(findAnomalies(d)).toEqual([]);
   });
 });

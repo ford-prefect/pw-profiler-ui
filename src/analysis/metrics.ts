@@ -102,7 +102,40 @@ export function cycleMetrics(driver: Driver): CycleMetrics {
   return m;
 }
 
-/* Timings of a follower; NaN in cycles where it is absent or did not finish. */
+const asyncCache = new WeakMap<Driver, Map<number, Uint8Array>>();
+
+/*
+ * 1 where the follower's block is an async report: the driver does not wait
+ * for async followers, so the server reports their previous run's timings.
+ * Captures from older pw-profiler lack the async field; there a follower
+ * that ran, or is running, with a signal time before the driver's is async,
+ * since a sync follower is only signalled within the cycle.
+ */
+export function asyncReports(driver: Driver, node: Node): Uint8Array {
+  let byNode = asyncCache.get(driver);
+  if (!byNode) asyncCache.set(driver, (byNode = new Map()));
+  let out = byNode.get(node.index);
+  if (out) return out;
+
+  const flag = driver.nodeSeries(node, 'async');
+  const status = driver.nodeSeries(node, 'status');
+  const signal = driver.nodeSeries(node, 'signal');
+  const cycleSignal = driver.series('driver.signal');
+  const running = new Set(['triggered', 'awake', 'finished'].map((s) => driver.stringId(s)));
+
+  out = new Uint8Array(driver.cycleCount);
+  for (let i = 0; i < out.length; i++) {
+    if (!Number.isNaN(flag[i])) out[i] = flag[i];
+    else out[i] = running.has(status[i]) && signal[i] < cycleSignal[i] ? 1 : 0;
+  }
+  byNode.set(node.index, out);
+  return out;
+}
+
+/*
+ * Timings of a follower; NaN in cycles where it is absent or did not finish.
+ * Async followers' runs are attributed to the cycle they ran in.
+ */
 export function nodeMetrics(driver: Driver, node: Node): NodeMetrics {
   let byNode = nodeCache.get(driver);
   if (!byNode) nodeCache.set(driver, (byNode = new Map()));
@@ -116,6 +149,7 @@ export function nodeMetrics(driver: Driver, node: Node): NodeMetrics {
   const awake = driver.nodeSeries(node, 'awake');
   const finish = driver.nodeSeries(node, 'finish');
   const finished = driver.stringId('finished');
+  const async = asyncReports(driver, node);
 
   m = {
     start: new Float64Array(n).fill(NaN),
@@ -124,11 +158,18 @@ export function nodeMetrics(driver: Driver, node: Node): NodeMetrics {
     end: new Float64Array(n).fill(NaN),
   };
   for (let i = 0; i < n; i++) {
-    if (status[i] !== finished) continue;
-    m.start[i] = pos((signal[i] - cycleSignal[i]) / 1e3);
-    m.latency[i] = pos((awake[i] - signal[i]) / 1e3);
-    m.duration[i] = pos((finish[i] - awake[i]) / 1e3);
-    m.end[i] = pos((finish[i] - cycleSignal[i]) / 1e3);
+    let c = i;
+    if (async[i]) {
+      /* The previous run, if it was in the previous recorded cycle. */
+      c = i - 1;
+      if (c < 0 || !(signal[i] >= cycleSignal[c] && finish[i] >= awake[i] && awake[i] >= signal[i])) continue;
+    } else if (status[i] !== finished) {
+      continue;
+    }
+    m.start[c] = pos((signal[i] - cycleSignal[c]) / 1e3);
+    m.latency[c] = pos((awake[i] - signal[i]) / 1e3);
+    m.duration[c] = pos((finish[i] - awake[i]) / 1e3);
+    m.end[c] = pos((finish[i] - cycleSignal[c]) / 1e3);
   }
   byNode.set(node.index, m);
   return m;

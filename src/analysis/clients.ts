@@ -1,10 +1,12 @@
 import type { Driver, Node } from '../model';
-import { cycleMetrics, nodeMetrics } from './metrics';
+import { asyncReports, cycleMetrics, nodeMetrics } from './metrics';
 import type { Range } from './range';
 import { summarize, type Summary } from './stats';
 
 export interface ClientStats {
   node: Node;
+  /* Whether the driver runs the node asynchronously. */
+  async: boolean;
   /* Cycles in which the node finished. */
   cycles: number;
   duration: Summary;
@@ -24,6 +26,7 @@ export function clientStats(driver: Driver, range?: Range): ClientStats[] {
     const duration = summarize(m.duration, range);
     return {
       node,
+      async: asyncReports(driver, node).includes(1),
       cycles: duration.n,
       duration,
       latency: summarize(m.latency, range),

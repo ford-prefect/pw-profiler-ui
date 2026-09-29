@@ -1,5 +1,5 @@
 import type { Driver, Node } from '../model';
-import { cycleMetrics } from './metrics';
+import { asyncReports, cycleMetrics } from './metrics';
 import { clampRange, type Range } from './range';
 
 export type AnomalyKind =
@@ -7,7 +7,7 @@ export type AnomalyKind =
   | 'xrun'
   /* The graph took longer than the cycle budget. */
   | 'overrun'
-  /* A node was not finished when the cycle was reported. */
+  /* A sync node was not finished when the cycle was reported. */
   | 'incomplete'
   /* The driver woke up off its expected period. */
   | 'period';
@@ -59,8 +59,9 @@ export function findAnomalies(driver: Driver, opts: AnomalyOptions = {}): Anomal
 
   for (const node of driver.followers) {
     const status = driver.nodeSeries(node, 'status');
+    const async = asyncReports(driver, node);
     for (let i = 0; i < n; i++) {
-      if (unfinished.has(status[i])) out.push({ cycle: i, kind: 'incomplete', node });
+      if (!async[i] && unfinished.has(status[i])) out.push({ cycle: i, kind: 'incomplete', node });
     }
   }
 
