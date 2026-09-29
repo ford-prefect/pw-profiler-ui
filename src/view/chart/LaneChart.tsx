@@ -59,7 +59,7 @@ export function LaneChart({ lanes, onPick }: Props) {
                 const y = top + k * laneH;
                 ctx.fillStyle = token(lane.active ? '--ink' : '--ink-2');
                 ctx.fillText(lane.label, left + 4 * dpr, y + 2 * dpr);
-                ctx.fillStyle = token(lane.active ? '--series-1' : '--axis');
+                ctx.fillStyle = token(lane.active ? '--series-1' : '--muted');
                 for (const s of lane.spans) {
                   const x0 = u.valToPos(s.start, 'x', true);
                   const x1 = u.valToPos(s.stop, 'x', true);

@@ -1,3 +1,4 @@
+import { setTheme, theme } from './chart/theme';
 import { Clients } from './Clients';
 import { CycleView } from './CycleView';
 import { Distribution } from './Distribution';
@@ -9,6 +10,15 @@ import { driverIndex, fileName, profile, selectDriver, selectedCycle, zoom } fro
 import { Summary } from './Summary';
 import { Timeline } from './Timeline';
 import './style.css';
+
+function ThemeToggle() {
+  const next = theme.value === 'dark' ? 'light' : 'dark';
+  return (
+    <button class="button" onClick={() => setTheme(next)} title={`Switch to ${next} theme`}>
+      {next === 'light' ? 'Light' : 'Dark'}
+    </button>
+  );
+}
 
 function Header() {
   const p = profile.value;
@@ -38,10 +48,11 @@ function Header() {
               Reset zoom
             </button>
           )}
-          <span class="spacer" />
-          <Loader compact />
         </>
       )}
+      <span class="spacer" />
+      <ThemeToggle />
+      {p && <Loader compact />}
     </header>
   );
 }

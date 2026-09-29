@@ -1,10 +1,36 @@
 import { signal } from '@preact/signals';
 
-/* Bumped when the colour scheme changes, so charts can re-read tokens. */
+export type Theme = 'dark' | 'light';
+
+const KEY = 'pw-profiler-ui:theme';
+
+function stored(): Theme {
+  try {
+    return localStorage.getItem(KEY) === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
+
+export const theme = signal<Theme>(stored());
+/* Bumped when the theme changes, so charts can re-read tokens. */
 export const themeVersion = signal(0);
 
-const mq = matchMedia('(prefers-color-scheme: dark)');
-mq.addEventListener('change', () => themeVersion.value++);
+function apply(t: Theme) {
+  document.documentElement.dataset.theme = t;
+}
+apply(theme.value);
+
+export function setTheme(t: Theme) {
+  theme.value = t;
+  apply(t);
+  try {
+    localStorage.setItem(KEY, t);
+  } catch {
+    /* Not persisted, e.g. in private windows. */
+  }
+  themeVersion.value++;
+}
 
 export function token(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();

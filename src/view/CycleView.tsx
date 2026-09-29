@@ -123,7 +123,7 @@ export function CycleView() {
         )}
         {cycleAnomalies.length > 0 &&
           ` Anomalies: ${cycleAnomalies.map((a) => `${KIND_LABEL[a.kind]} (${subject(a)}: ${detail(a, times.value)})`).join(', ')}.`}{' '}
-        Light bars are scheduling latency, dark bars processing.
+        Grey bars are scheduling latency, blue bars processing.
         {sel.budget > scale && ` The budget line is off-scale.`}
       </p>
       <h3>{incident ? `Run of cycle ${index}, completed in recovery (report ${shown})` : 'Selected'}</h3>
