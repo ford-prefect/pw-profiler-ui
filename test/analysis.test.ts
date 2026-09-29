@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  activeSpans,
   asyncReports,
   clientStats,
   clockConfigs,
@@ -253,5 +254,23 @@ describe('driver role changes', () => {
     expect([...m.gap]).toEqual([0, 0, 0, 0, 0, 1, 0]);
     expect(m.period[5]).toBeNaN();
     expect(m.period[6]).toBeCloseTo(m.budget[5], -2);
+  });
+});
+
+describe('activeSpans', () => {
+  it('splits activity at gaps', () => {
+    const p = load('roles.json');
+    const sink = p.drivers.find((d) => d.node.id === 70)!;
+    const spans = activeSpans(sink, cycleTimes(sink, p.start));
+    expect(spans.map((s) => [s.first, s.end, s.followers])).toEqual([
+      [0, 5, 0],
+      [5, 7, 0],
+    ]);
+    expect(spans[1].start - spans[0].stop).toBeGreaterThan(180);
+    const mic = p.drivers.find((d) => d.node.id === 71)!;
+    expect(activeSpans(mic, cycleTimes(mic, p.start)).map((s) => [s.first, s.end, s.followers])).toEqual([
+      [0, 2, 19],
+      [2, 5, 18],
+    ]);
   });
 });

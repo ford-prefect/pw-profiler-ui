@@ -4,3 +4,4 @@ export * from './stats';
 export * from './clients';
 export * from './anomalies';
 export * from './cycle';
+export * from './activity';
