@@ -134,16 +134,11 @@ export class Driver {
     return out;
   }
 
-  cycle(i: number): Cycle {
-    if (!(i >= 0 && i < this.cycleCount)) throw new RangeError(`cycle ${i}`);
-    const c = this.data.cycles;
-    const s = (f: CycleField) => c[f][i];
-    const str = (v: number) => this.strings[v];
-
-    const followers = rows(this.data.followers, i, (col, j) => this.block(col, j));
-    const followerClocks = rows(this.data.followerClocks, i, (col, j) => ({
+  /* Clocks of followers that are drivers themselves, in cycle i. */
+  followerClocks(i: number): FollowerClock[] {
+    return rows(this.data.followerClocks, i, (col, j) => ({
       id: col.id[j],
-      name: str(col.name[j]),
+      name: this.strings[col.name[j]],
       nsec: col.nsec[j],
       rate: { num: col.rateNum[j], denom: col.rateDenom[j] },
       position: col.position[j],
@@ -153,6 +148,16 @@ export class Driver {
       nextNsec: col.nextNsec[j],
       xrun: col.xrun[j],
     }));
+  }
+
+  cycle(i: number): Cycle {
+    if (!(i >= 0 && i < this.cycleCount)) throw new RangeError(`cycle ${i}`);
+    const c = this.data.cycles;
+    const s = (f: CycleField) => c[f][i];
+    const str = (v: number) => this.strings[v];
+
+    const followers = rows(this.data.followers, i, (col, j) => this.block(col, j));
+    const followerClocks = this.followerClocks(i);
 
     return {
       index: i,
