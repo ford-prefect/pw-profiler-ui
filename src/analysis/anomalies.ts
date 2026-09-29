@@ -1,4 +1,4 @@
-import type { Driver, Node } from '../model';
+import type { Driver, Node, Profile } from '../model';
 import { asyncReports, cycleMetrics } from './metrics';
 import { clampRange, type Range } from './range';
 
@@ -28,26 +28,75 @@ export interface AnomalyOptions {
 
 const UNFINISHED = ['not-triggered', 'triggered', 'awake'];
 
-/* Anomalies in cycle order. */
-export function findAnomalies(driver: Driver, opts: AnomalyOptions = {}): Anomaly[] {
+interface CounterEvent {
+  time: number;
+  driver: Driver;
+  cycle: number;
+  value: number;
+  node?: Node;
+}
+
+const xrunCache = new WeakMap<Profile, Map<Driver, Anomaly[]>>();
+
+/*
+ * Increases of xrun counters. A node or clock can move between drivers, as
+ * driver or follower, so each counter is followed across all drivers in
+ * time order.
+ */
+function xruns(profile: Profile): Map<Driver, Anomaly[]> {
+  let out = xrunCache.get(profile);
+  if (out) return out;
+
+  const counters = new Map<string, CounterEvent[]>();
+  const add = (key: string, e: CounterEvent) => {
+    if (Number.isNaN(e.value)) return;
+    let list = counters.get(key);
+    if (!list) counters.set(key, (list = []));
+    list.push(e);
+  };
+
+  for (const driver of profile.drivers) {
+    const time = driver.series('clock.nsec');
+    const clockXrun = driver.series('clock.xrun');
+    const clockName = driver.series('clock.name');
+    const xrunCount = driver.series('driver.xrunCount');
+    for (let i = 0; i < driver.cycleCount; i++) {
+      const t = time[i];
+      add(`clock:${driver.string(clockName[i])}`, { time: t, driver, cycle: i, value: clockXrun[i] });
+      add(`node:${driver.node.index}`, { time: t, driver, cycle: i, value: xrunCount[i] });
+      for (const fc of driver.followerClocks(i)) {
+        const node = driver.followers.find((n) => n.id === fc.id);
+        add(`clock:${fc.name}`, { time: t, driver, cycle: i, value: fc.xrun, node });
+      }
+    }
+    for (const node of driver.followers) {
+      const v = driver.nodeSeries(node, 'xrunCount');
+      for (let i = 0; i < driver.cycleCount; i++) {
+        add(`node:${node.index}`, { time: time[i], driver, cycle: i, value: v[i], node });
+      }
+    }
+  }
+
+  out = new Map(profile.drivers.map((d) => [d, []]));
+  for (const events of counters.values()) {
+    events.sort((a, b) => a.time - b.time);
+    for (let k = 1; k < events.length; k++) {
+      const e = events[k];
+      const inc = e.value - events[k - 1].value;
+      if (inc > 0) out.get(e.driver)!.push({ cycle: e.cycle, kind: 'xrun', node: e.node, value: inc });
+    }
+  }
+  xrunCache.set(profile, out);
+  return out;
+}
+
+/* Anomalies of one driver's cycles, in cycle order. */
+export function findAnomalies(profile: Profile, driver: Driver, opts: AnomalyOptions = {}): Anomaly[] {
   const tolerance = opts.periodTolerance ?? 0.25;
   const n = driver.cycleCount;
   const m = cycleMetrics(driver);
   const unfinished = new Set(UNFINISHED.map((s) => driver.stringId(s)).filter((i) => i >= 0));
-  const out: Anomaly[] = [];
-
-  const counter = (values: ArrayLike<number>, node?: Node) => {
-    let last = NaN;
-    for (let i = 0; i < n; i++) {
-      const v = values[i];
-      if (Number.isNaN(v)) continue;
-      if (v > last) out.push({ cycle: i, kind: 'xrun', node, value: v - last });
-      last = v;
-    }
-  };
-  counter(driver.series('clock.xrun'));
-  counter(driver.series('driver.xrunCount'));
-  for (const node of driver.followers) counter(driver.nodeSeries(node, 'xrunCount'), node);
+  const out: Anomaly[] = [...xruns(profile).get(driver)!];
 
   const driverStatus = driver.series('driver.status');
   for (let i = 0; i < n; i++) {

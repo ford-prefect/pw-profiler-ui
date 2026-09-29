@@ -95,7 +95,7 @@ export const busy = computed(() => (metrics.value ? summarize(metrics.value.busy
 export const load = computed(() => (metrics.value ? summarize(metrics.value.load, range.value) : null));
 export const clocks = computed(() => (driver.value ? clockConfigs(driver.value, range.value) : []));
 
-export const anomalies = computed(() => (driver.value ? findAnomalies(driver.value) : []));
+export const anomalies = computed(() => (driver.value ? findAnomalies(profile.value!, driver.value) : []));
 export const visibleAnomalies = computed(() => {
   const { start, end } = range.value;
   return anomalies.value.filter((a) => a.cycle >= start && a.cycle < end);

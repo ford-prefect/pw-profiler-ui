@@ -94,8 +94,10 @@ describe('clientStats', () => {
 
 describe('anomalies', () => {
   it('finds none in a clean capture', () => {
-    expect(findAnomalies(load('start.json').drivers[0])).toEqual([]);
-    expect(findAnomalies(load('churn.json').drivers[0])).toEqual([]);
+    const start = load('start.json');
+    expect(findAnomalies(start, start.drivers[0])).toEqual([]);
+    const churn = load('churn.json');
+    expect(findAnomalies(churn, churn.drivers[0])).toEqual([]);
   });
 
   it('ranks top cycles', () => {
@@ -142,8 +144,11 @@ describe('cycleBreakdown', () => {
 });
 
 describe('driver gaps', () => {
-  const driverNamed = (fixture: string, prefix: string) =>
-    load(fixture).drivers.find((d) => d.node.name.startsWith(prefix))!;
+  const profiles = new Map<string, ReturnType<typeof load>>();
+  const driverNamed = (fixture: string, prefix: string) => {
+    if (!profiles.has(fixture)) profiles.set(fixture, load(fixture));
+    return profiles.get(fixture)!.drivers.find((d) => d.node.name.startsWith(prefix))!;
+  };
 
   it('ignores the period before a first run', () => {
     const d = driverNamed('start-prev0.json', 'alsa_input.usb-046d');
@@ -168,14 +173,15 @@ describe('driver gaps', () => {
     expect(m.budget[0]).toBeNaN();
     expect(m.load[0]).toBeNaN();
     expect(clockConfigs(d)[0].fixedRate).toBe(false);
-    expect(findAnomalies(d).filter((a) => a.kind !== 'incomplete')).toEqual([]);
+    expect(findAnomalies(profiles.get('start-prev0.json')!, d).filter((a) => a.kind !== 'incomplete')).toEqual([]);
   });
 });
 
 describe('async followers', () => {
   const setup = () => {
-    const d = load('async.json').drivers.find((d) => d.node.name.startsWith('v4l2_input'))!;
-    return { d, node: d.followers.find((n) => n.name === 'org.gnome.Snapshot')! };
+    const p = load('async.json');
+    const d = p.drivers.find((d) => d.node.name.startsWith('v4l2_input'))!;
+    return { p, d, node: d.followers.find((n) => n.name === 'org.gnome.Snapshot')! };
   };
 
   it('are inferred without the async field', () => {
@@ -197,8 +203,8 @@ describe('async followers', () => {
   });
 
   it('are not reported as unfinished', () => {
-    const { d } = setup();
-    expect(findAnomalies(d)).toEqual([]);
+    const { p, d } = setup();
+    expect(findAnomalies(p, d)).toEqual([]);
   });
 });
 
@@ -216,6 +222,28 @@ describe('driver role changes', () => {
     expect(m.busy[0]).toBeNaN();
     expect(m.gap[0]).toBe(1);
     expect(cycleBreakdown(dummy, 0).rows.every((r) => Number.isNaN(r.finish))).toBe(true);
+  });
+
+  it('follows xrun counters across drivers', () => {
+    const { p, dummy, sink, mic } = setup();
+    const xruns = (d: typeof sink) =>
+      findAnomalies(p, d)
+        .filter((a) => a.kind === 'xrun')
+        .map((a) => [a.cycle, a.node?.name, a.value]);
+    /* echo-cancel counters rise 1 -> 2 under Dummy-Driver at 12.86s ... */
+    expect(xruns(dummy)).toEqual([
+      [2, 'echo_cancel_source', 1],
+      [2, 'echo_cancel_playback', 1],
+    ]);
+    /* ... then to 26 by the time the mic drives, and 28 later; the mic's own count rises too. */
+    expect(xruns(mic)).toEqual([
+      [0, 'echo_cancel_source', 24],
+      [0, 'echo_cancel_playback', 23],
+      [2, 'echo_cancel_source', 2],
+      [2, 'echo_cancel_playback', 2],
+      [2, undefined, 3],
+    ]);
+    expect(xruns(sink)).toEqual([]);
   });
 
   it('breaks where the record jumps ahead', () => {
