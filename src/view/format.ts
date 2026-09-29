@@ -7,7 +7,7 @@ const f2 = nf(2);
 export function us(v: number): string {
   if (!Number.isFinite(v)) return '–';
   if (Math.abs(v) >= 1000) return `${f2.format(v / 1000)} ms`;
-  return `${f1.format(v)} µs`;
+  return `${(Math.abs(v) >= 100 ? f0 : f1).format(v)} µs`;
 }
 
 export function pct(v: number): string {

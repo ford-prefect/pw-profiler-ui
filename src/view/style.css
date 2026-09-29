@@ -219,3 +219,19 @@ code {
   font-family: ui-monospace, monospace;
   font-size: 13px;
 }
+
+h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 16px 0 2px;
+  color: var(--ink-2);
+}
+
+.chart {
+  width: 100%;
+}
+
+.chart .u-legend {
+  font-size: 12px;
+  color: var(--ink-2);
+}

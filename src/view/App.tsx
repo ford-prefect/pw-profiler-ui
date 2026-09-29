@@ -1,6 +1,7 @@
 import { Loader } from './Loader';
 import { driverIndex, fileName, profile, selectedCycle, zoom } from './state';
 import { Summary } from './Summary';
+import { Timeline } from './Timeline';
 import './style.css';
 
 function Header() {
@@ -43,7 +44,16 @@ export function App() {
   return (
     <>
       <Header />
-      <main>{profile.value ? <Summary /> : <Loader />}</main>
+      <main>
+        {profile.value ? (
+          <>
+            <Summary />
+            <Timeline />
+          </>
+        ) : (
+          <Loader />
+        )}
+      </main>
     </>
   );
 }
