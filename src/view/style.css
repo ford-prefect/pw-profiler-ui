@@ -202,12 +202,12 @@ select {
   color: var(--good);
 }
 
-.status-xrun .status-icon {
+.status-incomplete .status-icon {
   color: var(--critical);
 }
 
-.status-overrun .status-icon,
-.status-incomplete .status-icon {
+.status-xrun .status-icon,
+.status-overrun .status-icon {
   color: var(--serious);
 }
 

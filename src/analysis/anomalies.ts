@@ -1,25 +1,51 @@
 import type { Driver, Node, Profile } from '../model';
-import { asyncReports, cycleMetrics } from './metrics';
+import { asyncReports, cycleMetrics, Report } from './metrics';
 import { clampRange, type Range } from './range';
 
-export type AnomalyKind =
-  /* An xrun counter increased. */
-  | 'xrun'
-  /* The graph took longer than the cycle budget. */
-  | 'overrun'
-  /* A sync node was not finished when the cycle was reported. */
-  | 'incomplete'
-  /* The driver woke up off its expected period. */
-  | 'period';
-
-export interface Anomaly {
+/* An xrun counter going up in a cycle's report. */
+export interface CounterIncrease {
   cycle: number;
-  kind: AnomalyKind;
-  /* Node the anomaly is attributed to, if not the driver. */
+  /* The node whose counter it is; neither node nor clock means the driver. */
   node?: Node;
-  /* xrun: counter increase; overrun: load; period: period / expected. */
-  value?: number;
+  clock?: string;
+  increase: number;
 }
+
+/* A node that held up an incomplete graph run. */
+export interface Blocked {
+  node: Node;
+  /* not-triggered: waiting on its inputs; triggered: never woke up; awake: did not finish. */
+  status: string;
+  /* Absent or inactive in the report before, so it just joined the graph. */
+  joined: boolean;
+}
+
+interface Span {
+  /* First report and one past the last one it covers. */
+  cycle: number;
+  end: number;
+}
+
+export type Anomaly =
+  /* The graph run had not finished by the driver's next wakeup. */
+  | (Span & {
+      kind: 'incomplete';
+      blocked: Blocked[];
+      /* The recovery report, where the run completed. */
+      recovery?: number;
+      /* Driver signal to completion of the run, µs. */
+      completion: number;
+      /* Counters that went up with it. */
+      counters: CounterIncrease[];
+    })
+  /* xrun counters that went up outside incomplete runs, merged into bursts. */
+  | (Span & { kind: 'xrun'; node?: Node; clock?: string; increase: number; count: number })
+  /* The graph took longer than the cycle budget. */
+  | (Span & { kind: 'overrun'; load: number })
+  /* The driver woke up off its expected period. */
+  | (Span & { kind: 'period'; ratio: number });
+
+export type AnomalyKind = Anomaly['kind'];
 
 export interface AnomalyOptions {
   /* Relative deviation from the expected period that is reported. */
@@ -28,22 +54,26 @@ export interface AnomalyOptions {
 
 const UNFINISHED = ['not-triggered', 'triggered', 'awake'];
 
+/* Counter increases this close together (ns) are merged into one burst. */
+const BURST_NS = 1e9;
+
 interface CounterEvent {
   time: number;
   driver: Driver;
   cycle: number;
   value: number;
   node?: Node;
+  clock?: string;
 }
 
-const xrunCache = new WeakMap<Profile, Map<Driver, Anomaly[]>>();
+const xrunCache = new WeakMap<Profile, Map<Driver, CounterIncrease[]>>();
 
 /*
  * Increases of xrun counters. A node or clock can move between drivers, as
  * driver or follower, so each counter is followed across all drivers in
  * time order.
  */
-function xruns(profile: Profile): Map<Driver, Anomaly[]> {
+function counterIncreases(profile: Profile): Map<Driver, CounterIncrease[]> {
   let out = xrunCache.get(profile);
   if (out) return out;
 
@@ -62,11 +92,11 @@ function xruns(profile: Profile): Map<Driver, Anomaly[]> {
     const xrunCount = driver.series('driver.xrunCount');
     for (let i = 0; i < driver.cycleCount; i++) {
       const t = time[i];
-      add(`clock:${driver.string(clockName[i])}`, { time: t, driver, cycle: i, value: clockXrun[i] });
+      const clock = driver.string(clockName[i]);
+      add(`clock:${clock}`, { time: t, driver, cycle: i, value: clockXrun[i], clock });
       add(`node:${driver.node.index}`, { time: t, driver, cycle: i, value: xrunCount[i] });
       for (const fc of driver.followerClocks(i)) {
-        const node = driver.followers.find((n) => n.id === fc.id);
-        add(`clock:${fc.name}`, { time: t, driver, cycle: i, value: fc.xrun, node });
+        add(`clock:${fc.name}`, { time: t, driver, cycle: i, value: fc.xrun, clock: fc.name });
       }
     }
     for (const node of driver.followers) {
@@ -82,36 +112,95 @@ function xruns(profile: Profile): Map<Driver, Anomaly[]> {
     events.sort((a, b) => a.time - b.time);
     for (let k = 1; k < events.length; k++) {
       const e = events[k];
-      const inc = e.value - events[k - 1].value;
-      if (inc > 0) out.get(e.driver)!.push({ cycle: e.cycle, kind: 'xrun', node: e.node, value: inc });
+      const increase = e.value - events[k - 1].value;
+      if (increase > 0) out.get(e.driver)!.push({ cycle: e.cycle, node: e.node, clock: e.clock, increase });
     }
   }
+  for (const list of out.values()) list.sort((a, b) => a.cycle - b.cycle);
   xrunCache.set(profile, out);
+  return out;
+}
+
+function incidents(driver: Driver, counters: CounterIncrease[]): { found: Anomaly[]; used: Set<CounterIncrease> } {
+  const { report, gap } = cycleMetrics(driver);
+  const n = driver.cycleCount;
+  const signal = driver.series('driver.signal');
+  const finish = driver.series('driver.finish');
+  const unfinished = new Set(UNFINISHED.map((s) => driver.stringId(s)).filter((i) => i >= 0));
+  const inactive = driver.stringId('inactive');
+  const found: Anomaly[] = [];
+  const used = new Set<CounterIncrease>();
+
+  for (let i = 0; i < n; i++) {
+    const r = report[i];
+    if (r === Report.Normal || (r === Report.Recovery && i > 0 && report[i - 1] === Report.Incomplete)) continue;
+
+    const recovery = r === Report.Recovery ? i : i + 1 < n && report[i + 1] === Report.Recovery ? i + 1 : undefined;
+    const last = recovery ?? i;
+
+    const blocked: Blocked[] = [];
+    for (const node of driver.followers) {
+      const status = driver.nodeSeries(node, 'status');
+      if (!unfinished.has(status[i]) || asyncReports(driver, node)[i]) continue;
+      const before = i > 0 ? status[i - 1] : NaN;
+      blocked.push({
+        node,
+        status: driver.string(status[i])!,
+        joined: Number.isNaN(before) || before === inactive,
+      });
+    }
+
+    /* Counters register the xrun up to the report after the recovery. */
+    const window = last + 1 < n && !gap[last + 1] ? last + 1 : last;
+    const attached = counters.filter((c) => c.cycle >= i && c.cycle <= window);
+    attached.forEach((c) => used.add(c));
+
+    found.push({
+      kind: 'incomplete',
+      cycle: i,
+      end: last + 1,
+      blocked,
+      recovery,
+      completion: recovery === undefined ? NaN : (finish[recovery] - signal[recovery]) / 1e3,
+      counters: attached,
+    });
+  }
+  return { found, used };
+}
+
+/* Merges counter increases of the same counter that follow closely into bursts. */
+function bursts(driver: Driver, counters: CounterIncrease[]): Anomaly[] {
+  const time = driver.series('clock.nsec');
+  const open = new Map<string, Anomaly & { kind: 'xrun' }>();
+  const out: Anomaly[] = [];
+  for (const c of counters) {
+    const key = c.clock ? `clock:${c.clock}` : `node:${c.node?.index ?? 'driver'}`;
+    const b = open.get(key);
+    if (b && time[c.cycle] - time[b.end - 1] <= BURST_NS) {
+      b.end = c.cycle + 1;
+      b.increase += c.increase;
+      b.count++;
+      continue;
+    }
+    const next = { kind: 'xrun' as const, cycle: c.cycle, end: c.cycle + 1, node: c.node, clock: c.clock, increase: c.increase, count: 1 };
+    open.set(key, next);
+    out.push(next);
+  }
   return out;
 }
 
 /* Anomalies of one driver's cycles, in cycle order. */
 export function findAnomalies(profile: Profile, driver: Driver, opts: AnomalyOptions = {}): Anomaly[] {
   const tolerance = opts.periodTolerance ?? 0.25;
-  const n = driver.cycleCount;
   const m = cycleMetrics(driver);
-  const unfinished = new Set(UNFINISHED.map((s) => driver.stringId(s)).filter((i) => i >= 0));
-  const out: Anomaly[] = [...xruns(profile).get(driver)!];
+  const counters = counterIncreases(profile).get(driver)!;
+  const { found, used } = incidents(driver, counters);
+  const out = [...found, ...bursts(driver, counters.filter((c) => !used.has(c)))];
 
-  const driverStatus = driver.series('driver.status');
-  for (let i = 0; i < n; i++) {
-    if (m.load[i] > 1) out.push({ cycle: i, kind: 'overrun', value: m.load[i] });
-    const r = m.period[i] / m.expectedPeriod[i];
-    if (Math.abs(r - 1) > tolerance) out.push({ cycle: i, kind: 'period', value: r });
-    if (unfinished.has(driverStatus[i])) out.push({ cycle: i, kind: 'incomplete', node: driver.node });
-  }
-
-  for (const node of driver.followers) {
-    const status = driver.nodeSeries(node, 'status');
-    const async = asyncReports(driver, node);
-    for (let i = 0; i < n; i++) {
-      if (!async[i] && unfinished.has(status[i])) out.push({ cycle: i, kind: 'incomplete', node });
-    }
+  for (let i = 0; i < driver.cycleCount; i++) {
+    if (m.load[i] > 1) out.push({ kind: 'overrun', cycle: i, end: i + 1, load: m.load[i] });
+    const ratio = m.period[i] / m.expectedPeriod[i];
+    if (Math.abs(ratio - 1) > tolerance) out.push({ kind: 'period', cycle: i, end: i + 1, ratio });
   }
 
   return out.sort((a, b) => a.cycle - b.cycle);

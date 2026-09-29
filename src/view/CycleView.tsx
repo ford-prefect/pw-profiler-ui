@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'preact/hooks';
 import { cycleBreakdown, typicalCycle } from '../analysis';
+import { detail, KIND_LABEL, subject } from './anomaly';
 import { Gantt } from './chart/Gantt';
 import { pct, seconds, us } from './format';
 import { anomalies, driver, range, selectedCycle, times } from './state';
@@ -78,7 +79,7 @@ export function CycleView() {
         Graph time {us(sel.busy)}
         {Number.isFinite(sel.budget) && ` (${pct(sel.busy / sel.budget)} of ${us(sel.budget)} budget)`}.
         {cycleAnomalies.length > 0 &&
-          ` Anomalies: ${cycleAnomalies.map((a) => (a.node ? `${a.kind} (${a.node.name})` : a.kind)).join(', ')}.`}{' '}
+          ` Anomalies: ${cycleAnomalies.map((a) => `${KIND_LABEL[a.kind]} (${subject(a)}: ${detail(a, times.value)})`).join(', ')}.`}{' '}
         Light bars are scheduling latency, dark bars processing.
         {sel.budget > scale && ` The budget line is off-scale.`}
       </p>

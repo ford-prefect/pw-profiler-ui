@@ -174,7 +174,7 @@ describe('driver gaps', () => {
     expect(m.budget[0]).toBeNaN();
     expect(m.load[0]).toBeNaN();
     expect(clockConfigs(d)[0].fixedRate).toBe(false);
-    expect(findAnomalies(profiles.get('start-prev0.json')!, d).filter((a) => a.kind !== 'incomplete')).toEqual([]);
+    expect(findAnomalies(profiles.get('start-prev0.json')!, d)).toEqual([]);
   });
 });
 
@@ -227,24 +227,35 @@ describe('driver role changes', () => {
 
   it('follows xrun counters across drivers', () => {
     const { p, dummy, sink, mic } = setup();
-    const xruns = (d: typeof sink) =>
-      findAnomalies(p, d)
-        .filter((a) => a.kind === 'xrun')
-        .map((a) => [a.cycle, a.node?.name, a.value]);
-    /* echo-cancel counters rise 1 -> 2 under Dummy-Driver at 12.86s ... */
-    expect(xruns(dummy)).toEqual([
-      [2, 'echo_cancel_source', 1],
-      [2, 'echo_cancel_playback', 1],
+    const summary = (d: typeof sink) =>
+      findAnomalies(p, d).map((a) =>
+        a.kind === 'xrun'
+          ? [a.cycle, 'xrun', a.node?.name ?? a.clock ?? 'driver', a.increase]
+          : a.kind === 'incomplete'
+            ? [a.cycle, 'incomplete', a.counters.map((c) => [c.node?.name, c.increase])]
+            : [a.cycle, a.kind],
+      );
+    /* echo-cancel counters rise 1 -> 2 under Dummy-Driver at 12.86s, as it recovers ... */
+    expect(summary(dummy)).toEqual([
+      [
+        0,
+        'incomplete',
+        [
+          ['echo_cancel_source', 1],
+          ['echo_cancel_playback', 1],
+        ],
+      ],
     ]);
     /* ... then to 26 by the time the mic drives, and 28 later; the mic's own count rises too. */
-    expect(xruns(mic)).toEqual([
-      [0, 'echo_cancel_source', 24],
-      [0, 'echo_cancel_playback', 23],
-      [2, 'echo_cancel_source', 2],
-      [2, 'echo_cancel_playback', 2],
-      [2, undefined, 3],
+    expect(summary(mic)).toEqual([
+      [0, 'xrun', 'echo_cancel_source', 24],
+      [0, 'xrun', 'echo_cancel_playback', 23],
+      [1, 'incomplete', []],
+      [2, 'xrun', 'echo_cancel_source', 2],
+      [2, 'xrun', 'echo_cancel_playback', 2],
+      [2, 'xrun', 'driver', 3],
     ]);
-    expect(xruns(sink)).toEqual([]);
+    expect(summary(sink)).toEqual([]);
   });
 
   it('breaks where the record jumps ahead', () => {
@@ -296,5 +307,32 @@ describe('xrun recovery', () => {
     /* The stuck run is taken from the recovery report. */
     expect(nodeMetrics(d, eq).duration[2]).toBeNaN();
     expect(nodeMetrics(d, eq).duration[3]).toBeCloseTo(46.4 - 28.7, 1);
+  });
+});
+
+describe('incomplete graph runs', () => {
+  it('are one incident naming the node that never ran', () => {
+    const p = load('incident.json');
+    const [a, ...rest] = findAnomalies(p, p.drivers[0]);
+    expect(rest).toEqual([]);
+    if (a.kind !== 'incomplete') throw new Error(a.kind);
+    expect(a).toMatchObject({ cycle: 2, end: 4, recovery: 3 });
+    expect(a.completion).toBeCloseTo(10082.4, 1);
+    expect(a.blocked.map((b) => [b.node.name, b.status, b.joined])).toEqual([
+      ['Brotato.504.spatialize_filter_chain.playback', 'not-triggered', true],
+    ]);
+    /* The driver's counter goes up in the report after the recovery. */
+    expect(a.counters.map((c) => [c.cycle, c.node, c.increase])).toEqual([[4, undefined, 1]]);
+  });
+
+  it('leave node-reported xruns as bursts', () => {
+    const p = load('setup-xruns.json');
+    const dummy = p.drivers.find((d) => d.node.name === 'Dummy-Driver')!;
+    const xruns = findAnomalies(p, dummy).filter((a) => a.kind === 'xrun');
+    /* Rises at cycle 2 belong to the recovery at 0-1; playback did not rise at 10. */
+    expect(xruns.map((a) => a.kind === 'xrun' && [a.node?.name, a.cycle, a.end, a.count])).toEqual([
+      ['echo_cancel_source', 4, 17, 8],
+      ['echo_cancel_playback', 4, 17, 7],
+    ]);
   });
 });

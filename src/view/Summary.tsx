@@ -1,13 +1,8 @@
 import type { AnomalyKind } from '../analysis';
+import { KINDS } from './anomaly';
 import { count, pct, seconds, us } from './format';
 import { busy, clocks, driver, load, profile, range, times, visibleAnomalies } from './state';
 
-const KINDS: { kind: AnomalyKind; label: string }[] = [
-  { kind: 'xrun', label: 'xruns' },
-  { kind: 'overrun', label: 'overruns' },
-  { kind: 'incomplete', label: 'unfinished nodes' },
-  { kind: 'period', label: 'off-period wakeups' },
-];
 
 const ofBudget = (v: number) => (Number.isFinite(v) ? `${pct(v)} of budget` : undefined);
 
@@ -64,10 +59,10 @@ export function Summary() {
         <div class="tile">
           <div class="tile-label">Anomalies</div>
           <ul class="anomaly-counts">
-            {KINDS.map(({ kind, label }) => {
+            {KINDS.map(({ kind, label, hint }) => {
               const n = byKind.get(kind) ?? 0;
               return (
-                <li key={kind} class={n ? `status-${kind}` : 'ok'}>
+                <li key={kind} class={n ? `status-${kind}` : 'ok'} title={hint}>
                   <span class="status-icon" aria-hidden="true">{n ? '▲' : '✓'}</span>
                   {count(n)} {label}
                 </li>

@@ -1,30 +1,10 @@
 import { useMemo } from 'preact/hooks';
-import { cycleBreakdown, topCycles, type AnomalyKind } from '../analysis';
+import { cycleBreakdown, topCycles } from '../analysis';
+import { detail, KIND_LABEL, subject } from './anomaly';
 import { count, pct, seconds, us } from './format';
 import { driver, metrics, range, selectedCycle, times, visibleAnomalies } from './state';
 
 const LIMIT = 100;
-
-const KIND_LABEL: Record<AnomalyKind, string> = {
-  xrun: 'xrun',
-  overrun: 'overrun',
-  incomplete: 'unfinished',
-  period: 'off-period',
-};
-
-function detail(kind: AnomalyKind, value?: number): string {
-  if (value == null) return '';
-  switch (kind) {
-    case 'xrun':
-      return `+${count(value)}`;
-    case 'overrun':
-      return `${pct(value)} of budget`;
-    case 'period':
-      return `${pct(value)} of expected`;
-    default:
-      return '';
-  }
-}
 
 export function Outliers() {
   const d = driver.value!;
@@ -102,7 +82,7 @@ export function Outliers() {
                     <th class="num">Time</th>
                     <th>Kind</th>
                     <th>Node</th>
-                    <th class="num">Detail</th>
+                    <th>Detail</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -119,8 +99,10 @@ export function Outliers() {
                         </span>
                         {KIND_LABEL[a.kind]}
                       </td>
-                      <td class="name" title={a.node?.name}>{a.node?.name ?? 'driver'}</td>
-                      <td class="num">{detail(a.kind, a.value)}</td>
+                      <td class="name" title={subject(a)}>
+                        {subject(a)}
+                      </td>
+                      <td>{detail(a, t)}</td>
                     </tr>
                   ))}
                 </tbody>
