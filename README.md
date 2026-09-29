@@ -26,3 +26,8 @@ Dependencies point one way: `parse → model → analysis → view`.
   anomalies
 - `src/view/`: Preact UI, signals for state, uPlot for charts
 - `src/worker.ts`: runs parse and model building off the main thread
+
+## Deployment
+
+CI builds and tests every push and pull request; pushes to `main` deploy
+`dist/` to GitHub Pages (Settings → Pages → Source: GitHub Actions).
