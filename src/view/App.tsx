@@ -1,5 +1,7 @@
+import { Clients } from './Clients';
+import { Distribution } from './Distribution';
 import { Loader } from './Loader';
-import { driverIndex, fileName, profile, selectedCycle, zoom } from './state';
+import { driverIndex, fileName, profile, selectDriver, zoom } from './state';
 import { Summary } from './Summary';
 import { Timeline } from './Timeline';
 import './style.css';
@@ -15,10 +17,7 @@ function Header() {
           {p.drivers.length > 1 && (
             <select
               value={driverIndex.value}
-              onChange={(e) => {
-                driverIndex.value = Number((e.target as HTMLSelectElement).value);
-                selectedCycle.value = null;
-              }}
+              onChange={(e) => selectDriver(Number((e.target as HTMLSelectElement).value))}
             >
               {p.drivers.map((d, i) => (
                 <option key={i} value={i}>
@@ -49,6 +48,8 @@ export function App() {
           <>
             <Summary />
             <Timeline />
+            <Distribution />
+            <Clients />
           </>
         ) : (
           <Loader />

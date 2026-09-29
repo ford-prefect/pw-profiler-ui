@@ -1,4 +1,4 @@
-import { computed, signal } from '@preact/signals';
+import { batch, computed, signal } from '@preact/signals';
 import {
   clientStats,
   clockConfigs,
@@ -21,13 +21,41 @@ export const driverIndex = signal(0);
 /* Visible time span in seconds from capture start; null for everything. */
 export const zoom = signal<{ min: number; max: number } | null>(null);
 export const selectedCycle = signal<number | null>(null);
+/* Followers shown in client charts, by node index, with their colour slot. */
+export const selectedNodes = signal<Map<number, number>>(new Map());
+export type ClientMetric = 'duration' | 'latency' | 'end';
+export const clientMetric = signal<ClientMetric>('duration');
+
+export const MAX_SELECTED = 8;
 
 export function setProfile(p: Profile, name: string) {
   profile.value = p;
   fileName.value = name;
-  driverIndex.value = 0;
   zoom.value = null;
-  selectedCycle.value = null;
+  selectDriver(0);
+}
+
+export function selectDriver(i: number) {
+  batch(() => {
+    driverIndex.value = i;
+    selectedCycle.value = null;
+    const top = [...clientStats(driver.value!)].sort((a, b) => b.share - a.share).slice(0, 3);
+    selectedNodes.value = new Map(top.map((c, slot) => [c.node.index, slot]));
+  });
+}
+
+export function toggleNode(index: number) {
+  const m = new Map(selectedNodes.value);
+  if (m.has(index)) {
+    m.delete(index);
+  } else {
+    if (m.size >= MAX_SELECTED) return;
+    const used = new Set(m.values());
+    let slot = 0;
+    while (used.has(slot)) slot++;
+    m.set(index, slot);
+  }
+  selectedNodes.value = m;
 }
 
 /* Derived data */
