@@ -32,7 +32,9 @@ export function setProfile(p: Profile, name: string) {
   profile.value = p;
   fileName.value = name;
   zoom.value = null;
-  selectDriver(0);
+  /* The driver with the most cycles is most likely the one of interest. */
+  const busiest = p.drivers.reduce((best, d, i) => (d.cycleCount > p.drivers[best].cycleCount ? i : best), 0);
+  selectDriver(busiest);
 }
 
 export function selectDriver(i: number) {

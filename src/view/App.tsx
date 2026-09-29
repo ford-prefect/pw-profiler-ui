@@ -1,6 +1,7 @@
 import { Clients } from './Clients';
 import { CycleView } from './CycleView';
 import { Distribution } from './Distribution';
+import { count } from './format';
 import { Loader } from './Loader';
 import { Outliers } from './Outliers';
 import { driverIndex, fileName, profile, selectDriver, selectedCycle, zoom } from './state';
@@ -21,11 +22,14 @@ function Header() {
               value={driverIndex.value}
               onChange={(e) => selectDriver(Number((e.target as HTMLSelectElement).value))}
             >
-              {p.drivers.map((d, i) => (
-                <option key={i} value={i}>
-                  {d.node.name} ({d.node.id})
-                </option>
-              ))}
+              {p.drivers
+                .map((d, i) => [d, i] as const)
+                .sort(([a], [b]) => b.cycleCount - a.cycleCount)
+                .map(([d, i]) => (
+                  <option key={i} value={i}>
+                    {d.node.name} ({d.node.id}) · {count(d.cycleCount)} cycles
+                  </option>
+                ))}
             </select>
           )}
           {zoom.value && (
