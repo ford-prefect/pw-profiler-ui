@@ -1,4 +1,5 @@
 import type { Driver, Node } from '../model';
+import { clampRange, type Range } from './range';
 
 /*
  * Derived per-cycle series. Durations are in µs, as in pw-profiler's plots.
@@ -105,4 +106,26 @@ export function nodeMetrics(driver: Driver, node: Node): NodeMetrics {
   }
   byNode.set(node.index, m);
   return m;
+}
+
+export interface ClockConfig {
+  duration: number;
+  rate: { num: number; denom: number };
+  cycles: number;
+}
+
+/* Distinct (quantum, rate) settings in range, most used first. */
+export function clockConfigs(driver: Driver, range?: Range): ClockConfig[] {
+  const { start, end } = clampRange(range, driver.cycleCount);
+  const duration = driver.series('clock.duration');
+  const num = driver.series('clock.rateNum');
+  const denom = driver.series('clock.rateDenom');
+  const seen = new Map<string, ClockConfig>();
+  for (let i = start; i < end; i++) {
+    const key = `${duration[i]}:${num[i]}/${denom[i]}`;
+    const c = seen.get(key);
+    if (c) c.cycles++;
+    else seen.set(key, { duration: duration[i], rate: { num: num[i], denom: denom[i] }, cycles: 1 });
+  }
+  return [...seen.values()].sort((a, b) => b.cycles - a.cycles);
 }

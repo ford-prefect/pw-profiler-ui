@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   clientStats,
+  clockConfigs,
   cycleMetrics,
   cycleTimes,
   findAnomalies,
@@ -97,5 +98,13 @@ describe('anomalies', () => {
     expect(topCycles(v, 3)).toEqual([2, 4, 5]);
     expect(topCycles(v, 10)).toEqual([2, 4, 5, 0, 3]);
     expect(topCycles(v, 2, { start: 3, end: 6 })).toEqual([4, 5]);
+  });
+});
+
+describe('clockConfigs', () => {
+  it('lists distinct quantum and rate settings', () => {
+    expect(clockConfigs(load('start.json').drivers[0])).toEqual([
+      { duration: 480, rate: { num: 1, denom: 48000 }, cycles: 3 },
+    ]);
   });
 });
