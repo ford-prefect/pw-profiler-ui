@@ -2,9 +2,20 @@
 
 Browser viewer for `pw-profiler --json` captures.
 
+**https://ford-prefect.github.io/pw-profiler-ui/**
+
 ```
 pw-profiler -J > profile.json
 ```
+
+Open the file in the viewer; it is processed locally and not uploaded.
+
+![Driver overview, summary and graph processing time of a capture](docs/overview.png)
+
+Selecting an incomplete cycle (a graph xrun) shows the node that held it
+up:
+
+![An incomplete cycle, held up by a node that was never triggered](docs/incident.png)
 
 ## Development
 
