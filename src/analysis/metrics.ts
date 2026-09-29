@@ -178,6 +178,8 @@ export function nodeMetrics(driver: Driver, node: Node): NodeMetrics {
 export interface ClockConfig {
   duration: number;
   rate: { num: number; denom: number };
+  /* False for clocks flagged NO_RATE, whose rate is approximate. */
+  fixedRate: boolean;
   cycles: number;
 }
 
@@ -187,12 +189,20 @@ export function clockConfigs(driver: Driver, range?: Range): ClockConfig[] {
   const duration = driver.series('clock.duration');
   const num = driver.series('clock.rateNum');
   const denom = driver.series('clock.rateDenom');
+  const flags = driver.series('clock.flags');
   const seen = new Map<string, ClockConfig>();
   for (let i = start; i < end; i++) {
-    const key = `${duration[i]}:${num[i]}/${denom[i]}`;
+    const fixedRate = !(flags[i] & CLOCK_FLAG_NO_RATE);
+    const key = `${duration[i]}:${num[i]}/${denom[i]}:${fixedRate}`;
     const c = seen.get(key);
     if (c) c.cycles++;
-    else seen.set(key, { duration: duration[i], rate: { num: num[i], denom: denom[i] }, cycles: 1 });
+    else
+      seen.set(key, {
+        duration: duration[i],
+        rate: { num: num[i], denom: denom[i] },
+        fixedRate,
+        cycles: 1,
+      });
   }
   return [...seen.values()].sort((a, b) => b.cycles - a.cycles);
 }

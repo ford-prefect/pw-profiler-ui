@@ -109,7 +109,7 @@ describe('anomalies', () => {
 describe('clockConfigs', () => {
   it('lists distinct quantum and rate settings', () => {
     expect(clockConfigs(load('start.json').drivers[0])).toEqual([
-      { duration: 480, rate: { num: 1, denom: 48000 }, cycles: 3 },
+      { duration: 480, rate: { num: 1, denom: 48000 }, fixedRate: true, cycles: 3 },
     ]);
   });
 });
@@ -167,6 +167,7 @@ describe('driver gaps', () => {
     const m = cycleMetrics(d);
     expect(m.budget[0]).toBeNaN();
     expect(m.load[0]).toBeNaN();
+    expect(clockConfigs(d)[0].fixedRate).toBe(false);
     expect(findAnomalies(d).filter((a) => a.kind !== 'incomplete')).toEqual([]);
   });
 });
