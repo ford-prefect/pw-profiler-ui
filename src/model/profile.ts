@@ -99,6 +99,15 @@ export class Driver {
     this.followers = [...seen].map((i) => nodes[i]);
   }
 
+  /* Value that string-valued fields (status, transport, names) hold for `s`, or -1. */
+  stringId(s: string): number {
+    return this.strings.indexOf(s);
+  }
+
+  string(id: number): string | undefined {
+    return this.strings[id];
+  }
+
   series(field: CycleField): Series {
     return this.data.cycles[field];
   }

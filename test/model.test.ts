@@ -70,6 +70,16 @@ describe('Profile', () => {
     expectRoundTrip(copy, samples);
   });
 
+  it('looks up string-valued fields', () => {
+    const { profile } = load('churn.json');
+    const d = profile.drivers[0];
+    const chromium = d.followers.find((n) => n.name === 'Chromium')!;
+    const status = d.nodeSeries(chromium, 'status');
+    expect(status[0]).toBe(d.stringId('inactive'));
+    expect(d.string(d.series('driver.status')[0])).toBe('finished');
+    expect(d.stringId('bogus')).toBe(-1);
+  });
+
   it('rejects out of range cycles', () => {
     const { profile } = load('start.json');
     expect(() => profile.drivers[0].cycle(3)).toThrow(RangeError);
