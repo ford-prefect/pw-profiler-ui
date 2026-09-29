@@ -134,6 +134,11 @@ export class Driver {
     return out;
   }
 
+  followerCount(i: number): number {
+    const start = this.data.followers.start;
+    return start[i + 1] - start[i];
+  }
+
   /* Clocks of followers that are drivers themselves, in cycle i. */
   followerClocks(i: number): FollowerClock[] {
     return rows(this.data.followerClocks, i, (col, j) => ({
