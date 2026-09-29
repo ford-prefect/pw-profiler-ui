@@ -2,9 +2,10 @@ import { effect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
-import { range, selectedCycle, times, zoom } from '../state';
+import { range, selectedCycle, times } from '../state';
 import { breakAt, decimate } from './decimate';
 import { color, themeVersion, token } from './theme';
+import { bindTimeEvents, timeAxisOptions } from './timeAxis';
 
 export interface TimeSeries {
   label: string;
@@ -39,12 +40,13 @@ export function TimeChart({ series, format, height = 200, fitFirst = false, brea
     const ink2 = token('--ink-2');
     const grid = token('--grid');
     const axis = { stroke: ink2, grid: { stroke: grid, width: 1 }, ticks: { stroke: grid, width: 1 } };
+    const time = timeAxisOptions(axis);
 
     const opts: uPlot.Options = {
       width: root.clientWidth,
       height,
       scales: {
-        x: { time: false },
+        x: time.x,
         y: fitFirst
           ? {
               range: (u) => {
@@ -57,15 +59,10 @@ export function TimeChart({ series, format, height = 200, fitFirst = false, brea
           : {},
       },
       axes: [
-        { ...axis, values: (_, ticks) => ticks.map((t) => `${t}s`) },
+        time.xAxis,
         { ...axis, size: 80, values: (_, ticks) => ticks.map(format) },
       ],
-      cursor: {
-        sync: { key: 'timeline' },
-        y: false,
-        drag: { x: true, y: false, setScale: false },
-        bind: { dblclick: () => () => null },
-      },
+      cursor: time.cursor,
       legend: { live: true },
       series: [
         { label: 'Time', value: (_, v) => (v == null ? '–' : `${v.toFixed(3)} s`) },
@@ -83,14 +80,7 @@ export function TimeChart({ series, format, height = 200, fitFirst = false, brea
         })),
       ],
       hooks: {
-        setSelect: [
-          (u) => {
-            const { left, width } = u.select;
-            if (width < 2) return;
-            zoom.value = { min: u.posToVal(left, 'x'), max: u.posToVal(left + width, 'x') };
-            u.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false);
-          },
-        ],
+        setSelect: [time.setSelect],
         draw: [
           (u) => {
             const c = selectedCycle.peek();
@@ -136,17 +126,10 @@ export function TimeChart({ series, format, height = 200, fitFirst = false, brea
       u.redraw(false, false);
     });
 
-    let down = { x: 0, y: 0 };
-    const onDown = (e: MouseEvent) => (down = { x: e.clientX, y: e.clientY });
-    const onClick = (e: MouseEvent) => {
-      if (Math.abs(e.clientX - down.x) > 3 || Math.abs(e.clientY - down.y) > 3) return;
+    const unbind = bindTimeEvents(u, () => {
       const i = u.cursor.idx;
       if (i != null && i < index.length) selectedCycle.value = index[i];
-    };
-    const onDbl = () => (zoom.value = null);
-    u.over.addEventListener('mousedown', onDown);
-    u.over.addEventListener('click', onClick);
-    u.over.addEventListener('dblclick', onDbl);
+    });
 
     const ro = new ResizeObserver(() => {
       u.setSize({ width: root.clientWidth, height });
@@ -156,6 +139,7 @@ export function TimeChart({ series, format, height = 200, fitFirst = false, brea
 
     return () => {
       ro.disconnect();
+      unbind();
       stopData();
       stopSel();
       u.destroy();

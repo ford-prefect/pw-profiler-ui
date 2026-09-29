@@ -85,6 +85,12 @@ function lowerBound(a: ArrayLike<number>, v: number): number {
   return lo;
 }
 
+/* Visible time span in seconds: the zoom, or the whole capture. */
+export const visibleSpan = computed(() => {
+  const p = profile.value;
+  return zoom.value ?? { min: 0, max: p ? (p.end - p.start) / 1e9 : 1 };
+});
+
 /* Cycles within the zoomed span. */
 export const range = computed<Range>(() => {
   const t = times.value;
