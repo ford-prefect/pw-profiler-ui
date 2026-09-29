@@ -455,3 +455,13 @@ tr.selected {
   flex-wrap: wrap;
   justify-content: center;
 }
+
+.tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--axis);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--ink-2);
+}

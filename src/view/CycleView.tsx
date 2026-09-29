@@ -75,7 +75,8 @@ export function CycleView() {
         </button>
       </div>
       <p class="hint">
-        Graph time {us(sel.busy)} ({pct(sel.busy / sel.budget)} of {us(sel.budget)} budget).
+        Graph time {us(sel.busy)}
+        {Number.isFinite(sel.budget) && ` (${pct(sel.busy / sel.budget)} of ${us(sel.budget)} budget)`}.
         {cycleAnomalies.length > 0 &&
           ` Anomalies: ${cycleAnomalies.map((a) => (a.node ? `${a.kind} (${a.node.name})` : a.kind)).join(', ')}.`}{' '}
         Light bars are scheduling latency, dark bars processing.

@@ -69,3 +69,42 @@ export function decimate(
   }
   return out;
 }
+
+/*
+ * Inserts a NaN point wherever `breaks` marks a source index between two
+ * consecutive output points, so lines are not drawn across gaps.
+ */
+export function breakAt(d: Decimated, breaks: ArrayLike<number>): Decimated {
+  const cum = new Uint32Array(breaks.length + 1);
+  for (let i = 0; i < breaks.length; i++) cum[i + 1] = cum[i] + (breaks[i] ? 1 : 0);
+  if (cum[breaks.length] === 0) return d;
+
+  const at: number[] = [];
+  for (let k = 1; k < d.index.length; k++) {
+    if (cum[d.index[k] + 1] - cum[d.index[k - 1] + 1] > 0) at.push(k);
+  }
+  if (!at.length) return d;
+
+  const n = d.index.length + at.length;
+  const out: Decimated = {
+    x: new Float64Array(n),
+    ys: d.ys.map(() => new Float64Array(n)),
+    index: new Uint32Array(n),
+  };
+  let o = 0;
+  let a = 0;
+  for (let k = 0; k < d.index.length; k++) {
+    if (at[a] === k) {
+      a++;
+      out.x[o] = (d.x[k - 1] + d.x[k]) / 2;
+      out.ys.forEach((y) => (y[o] = NaN));
+      out.index[o] = d.index[k];
+      o++;
+    }
+    out.x[o] = d.x[k];
+    out.ys.forEach((y, s) => (y[o] = d.ys[s][k]));
+    out.index[o] = d.index[k];
+    o++;
+  }
+  return out;
+}

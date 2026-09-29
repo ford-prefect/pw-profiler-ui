@@ -17,9 +17,10 @@ function ticks(max: number): number[] {
 }
 
 function describe(r: CycleRow): string {
-  if (Number.isNaN(r.finish)) return `${r.node.name} (${r.node.id}): ${r.status}`;
+  const name = `${r.node.name} (${r.node.id})${r.async ? ', async' : ''}`;
+  if (Number.isNaN(r.finish)) return `${name}: ${r.status}`;
   return (
-    `${r.node.name} (${r.node.id})\n` +
+    `${name}\n` +
     `signalled +${us(r.signal)}, awake +${us(r.awake)}, finished +${us(r.finish)}\n` +
     `scheduling ${us(r.awake - r.signal)}, processing ${us(r.finish - r.awake)}`
   );
@@ -36,6 +37,7 @@ export function Gantt({ cycle, scale }: Props) {
         <div class={`gantt-row ${r.driver ? 'driver' : ''}`} key={r.node.index} title={describe(r)}>
           <div class="gantt-label">
             {r.node.name} <span class="muted">{r.node.id}</span>
+            {r.async && <span class="tag">async</span>}
           </div>
           <div class="gantt-track">
             {Number.isNaN(r.finish) ? (

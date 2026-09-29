@@ -58,12 +58,12 @@ export function Timeline() {
       <p class="hint">Drag to zoom, double-click to reset, click to inspect a cycle.</p>
       <h3>Graph processing time</h3>
       <p class="hint">Driver signal to driver finish. The budget line is drawn when in range.</p>
-      <TimeChart series={busy} format={us} fitFirst />
+      <TimeChart series={busy} format={us} fitFirst breaks={m.gap} />
       <h3>Wakeup period</h3>
-      <TimeChart series={period} format={us} height={140} />
+      <TimeChart series={period} format={us} height={140} breaks={m.gap} />
       <h3>Driver delay</h3>
       <p class="hint">Hardware pointer delay at wakeup.</p>
-      <TimeChart series={delay} format={us} height={140} />
+      <TimeChart series={delay} format={us} height={140} breaks={m.gap} />
     </section>
   );
 }

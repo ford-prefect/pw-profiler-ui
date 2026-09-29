@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { range, selectedCycle, times, zoom } from '../state';
-import { decimate } from './decimate';
+import { breakAt, decimate } from './decimate';
 import { color, themeVersion, token } from './theme';
 
 export interface TimeSeries {
@@ -21,13 +21,15 @@ interface Props {
   height?: number;
   /* Fit the y axis to the first series only. */
   fitFirst?: boolean;
+  /* Non-zero at cycles that follow a gap; lines are broken there. */
+  breaks?: ArrayLike<number>;
 }
 
 /*
  * Time-series chart over the current driver's cycles. All instances share
  * the zoom, cursor and selected cycle.
  */
-export function TimeChart({ series, format, height = 200, fitFirst = false }: Props) {
+export function TimeChart({ series, format, height = 200, fitFirst = false, breaks }: Props) {
   const el = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -115,15 +117,18 @@ export function TimeChart({ series, format, height = 200, fitFirst = false }: Pr
     const update = () => {
       const { start, end } = range.value;
       const buckets = Math.max(100, Math.round(u.bbox.width / devicePixelRatio));
-      const d = decimate(
+      let d = decimate(
         times.value,
         series.map((s) => s.values),
         start,
         end,
         buckets,
       );
+      if (breaks) d = breakAt(d, breaks);
       index = d.index;
-      u.setData([d.x, ...d.ys] as uPlot.AlignedData);
+      /* uPlot treats null, not NaN, as missing. */
+      const ys = d.ys.map((y) => Array.from(y, (v) => (Number.isNaN(v) ? null : v)));
+      u.setData([d.x, ...ys] as uPlot.AlignedData);
     };
     const stopData = effect(update);
     const stopSel = effect(() => {
@@ -155,7 +160,7 @@ export function TimeChart({ series, format, height = 200, fitFirst = false }: Pr
       stopSel();
       u.destroy();
     };
-  }, [series, themeVersion.value]);
+  }, [series, breaks, themeVersion.value]);
 
   return <div ref={el} class="chart" />;
 }

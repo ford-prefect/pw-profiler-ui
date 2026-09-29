@@ -9,6 +9,7 @@ import {
   clients,
   driver,
   MAX_SELECTED,
+  metrics,
   selectedNodes,
   toggleNode,
   type ClientMetric,
@@ -70,7 +71,8 @@ export function Clients() {
     <section>
       <h2>Clients</h2>
       <p class="hint">
-        Nodes may run in parallel, so shares can add up to more than 100%. Select up to{' '}
+        Nodes may run in parallel, so shares can add up to more than 100%. The driver does not
+        wait for async nodes. Select up to{' '}
         {MAX_SELECTED} rows to plot them.
       </p>
       <div class="table-wrap">
@@ -107,6 +109,7 @@ export function Clients() {
                   </td>
                   <td class="name" title={c.node.name}>
                     {c.node.name} <span class="muted">{c.node.id}</span>
+                    {c.async && <span class="tag">async</span>}
                   </td>
                   {COLUMNS.map((col, i) => (
                     <td key={col.label} class="num">
@@ -137,7 +140,7 @@ export function Clients() {
         ))}
       </div>
       <p class="hint">{METRICS.find((m) => m.key === metric)!.hint}</p>
-      {series.length ? <TimeChart series={series} format={us} /> : <p class="muted">No clients selected.</p>}
+      {series.length ? <TimeChart series={series} format={us} breaks={metrics.value!.gap} /> : <p class="muted">No clients selected.</p>}
     </section>
   );
 }
