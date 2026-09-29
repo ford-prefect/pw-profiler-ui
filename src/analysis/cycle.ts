@@ -8,6 +8,8 @@ export interface CycleRow {
   driver: boolean;
   async: boolean;
   status: string;
+  /* Whether it ran in this cycle; a node can report finished from an earlier run. */
+  ran: boolean;
   /* µs from driver signal; NaN unless the node finished. */
   signal: number;
   awake: number;
@@ -61,22 +63,20 @@ export function cycleBreakdown(driver: Driver, index: number): CycleBreakdown {
   followers.sort((a, b) => key(a.signal) - key(b.signal) || key(a.awake) - key(b.awake));
   const ok = c.driver.status === 'finished';
 
+  const driverRow = {
+    node: c.driver.node,
+    driver: true,
+    async: false,
+    status: c.driver.status,
+    signal: rel(c.driver.signal, ok),
+    awake: rel(c.driver.awake, ok),
+    finish: rel(c.driver.finish, ok),
+  };
   return {
     index,
     busy: m.busy[index],
     budget: m.budget[index],
-    rows: [
-      ...followers,
-      {
-        node: c.driver.node,
-        driver: true,
-        async: false,
-        status: c.driver.status,
-        signal: rel(c.driver.signal, ok),
-        awake: rel(c.driver.awake, ok),
-        finish: rel(c.driver.finish, ok),
-      },
-    ],
+    rows: [...followers, driverRow].map((r) => ({ ...r, ran: Number.isFinite(r.finish) })),
   };
 }
 

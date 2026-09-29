@@ -334,3 +334,17 @@ describe('incomplete graph runs', () => {
     expect(findAnomalies(p, dummy).filter((a) => a.kind === 'incomplete')).toEqual([]);
   });
 });
+
+describe('nodes that did not run', () => {
+  it('are not taken for async followers', () => {
+    const p = load('incident.json');
+    const d = p.drivers[0];
+    const capture = d.followers.find((n) => n.name === 'Brotato.504.spatialize_filter_chain.capture')!;
+    /* Reports finished with timings from long before it joined, then runs. */
+    expect([...asyncReports(d, capture)]).toEqual([0, 0, 0, 0, 0, 0]);
+    expect(clientStats(d).find((c) => c.node === capture)!.async).toBe(false);
+    const row = cycleBreakdown(d, 3).rows.find((r) => r.node === capture)!;
+    expect(row).toMatchObject({ status: 'finished', async: false, ran: false });
+    expect(cycleBreakdown(d, 4).rows.find((r) => r.node === capture)!.ran).toBe(true);
+  });
+});

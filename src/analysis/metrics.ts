@@ -149,9 +149,12 @@ const asyncCache = new WeakMap<Driver, Map<number, Uint8Array>>();
 /*
  * 1 where the follower's block is an async report: the driver does not wait
  * for async followers, so the server reports their previous run's timings.
- * Captures from older pw-profiler lack the async field; there a follower
- * that ran, or is running, with a signal time before the driver's is async,
- * since a sync follower is only signalled within the cycle.
+ * Captures from older pw-profiler lack the async field; there a report
+ * looks async if the follower ran, or is running, with a signal time in the
+ * driver's previous cycle, since a sync follower is only signalled within
+ * the cycle. Older timings are left from a run before that: the node did not
+ * run. As nodes that did not run can look async in single reports, a node
+ * without the field is async if most of its reports look async.
  */
 export function asyncReports(driver: Driver, node: Node): Uint8Array {
   let byNode = asyncCache.get(driver);
@@ -163,12 +166,31 @@ export function asyncReports(driver: Driver, node: Node): Uint8Array {
   const status = driver.nodeSeries(node, 'status');
   const signal = driver.nodeSeries(node, 'signal');
   const cycleSignal = driver.series('driver.signal');
+  const prev = driver.series('driver.prev');
   const running = new Set(['triggered', 'awake', 'finished'].map((s) => driver.stringId(s)));
 
   out = new Uint8Array(driver.cycleCount);
+  let present = 0;
+  let looksAsync = 0;
+  /* The latest driver signal and the one before it; incomplete reports repeat a signal. */
+  let last = prev[0] > 0 ? prev[0] : -Infinity;
+  let before = -Infinity;
   for (let i = 0; i < out.length; i++) {
-    if (!Number.isNaN(flag[i])) out[i] = flag[i];
-    else out[i] = running.has(status[i]) && signal[i] < cycleSignal[i] ? 1 : 0;
+    const s = cycleSignal[i];
+    const start = s > last ? last : before;
+    if (s > last) {
+      before = last;
+      last = s;
+    }
+    if (!Number.isNaN(flag[i])) {
+      out[i] = flag[i];
+    } else if (running.has(status[i])) {
+      present++;
+      if (signal[i] >= start && signal[i] < s) looksAsync++;
+    }
+  }
+  if (looksAsync > present / 2) {
+    for (let i = 0; i < out.length; i++) if (Number.isNaN(flag[i]) && !Number.isNaN(status[i])) out[i] = 1;
   }
   byNode.set(node.index, out);
   return out;
